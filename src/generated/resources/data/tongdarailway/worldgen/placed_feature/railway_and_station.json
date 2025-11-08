@@ -1,0 +1,8 @@
+{
+  "feature": "tongdarailway:railway_and_station",
+  "placement": [
+    {
+      "type": "minecraft:in_square"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "parent": "minecraft:block/cube",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "down": "tongdarailway:block/track_spawner_bottom",
+    "east": "tongdarailway:block/track_spawner",
+    "north": "tongdarailway:block/track_spawner",
+    "particle": "tongdarailway:block/track_spawner",
+    "south": "tongdarailway:block/track_spawner",
+    "up": "tongdarailway:block/track_spawner_top",
+    "west": "tongdarailway:block/track_spawner"
+  }
+}

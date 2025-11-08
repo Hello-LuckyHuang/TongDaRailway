@@ -1,0 +1,30 @@
+package com.hxzhitang.tongdarailway.datagen;
+
+import com.hxzhitang.tongdarailway.blocks.ModBlocks;
+import net.minecraft.data.PackOutput;
+import net.neoforged.neoforge.client.model.generators.BlockStateProvider;
+import net.neoforged.neoforge.client.model.generators.ModelFile;
+import net.neoforged.neoforge.common.data.ExistingFileHelper;
+
+public class ModBlockStateProvider extends BlockStateProvider {
+    public ModBlockStateProvider(PackOutput output, String modid, ExistingFileHelper exFileHelper) {
+        super(output, modid, exFileHelper);
+    }
+
+    @Override
+    protected void registerStatesAndModels() {
+        ModelFile trackSpawnerModel = models()
+                .cube("track_spawner",
+                        modLoc("block/track_spawner_bottom"),
+                        modLoc("block/track_spawner_top"),
+                        modLoc("block/track_spawner"),
+                        modLoc("block/track_spawner"),
+                        modLoc("block/track_spawner"),
+                        modLoc("block/track_spawner")
+                )
+                .texture("particle", modLoc("block/track_spawner"))
+                .renderType("cutout");
+
+        this.simpleBlockWithItem(ModBlocks.TRACK_SPAWNER.get(), trackSpawnerModel);
+    }
+}
