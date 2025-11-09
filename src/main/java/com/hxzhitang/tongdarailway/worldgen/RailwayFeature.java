@@ -1,29 +1,32 @@
 package com.hxzhitang.tongdarailway.worldgen;
 
-import com.hxzhitang.tongdarailway.Config;
-import com.hxzhitang.tongdarailway.blocks.ModBlocks;
-import com.hxzhitang.tongdarailway.blocks.TrackSpawnerBlockEntity;
+import com.hxzhitang.tongdarailway.Tongdarailway;
+import com.hxzhitang.tongdarailway.blocks.ITrackPreGenExtension;
 import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.hxzhitang.tongdarailway.railway.RailwayMap;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import com.hxzhitang.tongdarailway.structure.RailwayTemplate;
 import com.hxzhitang.tongdarailway.structure.RoadbedManager;
+import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.CurveRoute;
 import com.hxzhitang.tongdarailway.util.MyMth;
 import com.mojang.serialization.Codec;
+import com.simibubi.create.AllBlocks;
+import com.simibubi.create.content.trains.track.*;
+import net.createmod.catnip.data.Couple;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
-import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.FeaturePlaceContext;
-import net.neoforged.neoforge.common.Tags;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 public class RailwayFeature extends Feature<RailwayFeatureConfig> {
     public RailwayFeature(Codec<RailwayFeatureConfig> codec) {
@@ -61,7 +64,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
 
         // 放置铁轨刷怪笼
         // 也许机械动力铁轨天然厌恶生成时放置，我只能用这种愚蠢的方法了
-        if (Config.generateTrackSpawner) {
+        /*if (Config.generateTrackSpawner) {
             if (builder.regionRailways.containsKey(regionPos)) {
                 if (railwayMap.trackMap.containsKey(cPos)) {
                     var firstInfo = railwayMap.trackMap.get(cPos).getFirst();
@@ -74,9 +77,86 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                     }
                 }
             }
+        }*/
+
+        // 咱就是说，能不能把文件编码改成UTF-8？IDEA一打开就是乱码
+        // 放置铁轨
+        if (builder.regionRailways.containsKey(regionPos) && railwayMap.trackMap.containsKey(cPos)) {
+            List<TrackPutInfo> tracks = railwayMap.trackMap.get(cPos);
+            tracks.forEach(track -> {
+                if (track.bezier() != null) {
+                    if (Math.abs(track.bezier().endOffset().y) > 15){
+                        Tongdarailway.LOGGER.warn("Railway track height offset is too large. Generation Failed at" + track.pos().toString());
+                        return;
+                    }
+                    placeCurveTrack(world, track);
+                } else {
+                    if (!world.getBlockState(track.pos()).is(AllBlocks.TRACK)) {
+                        world.setBlock(track.pos(), AllBlocks.TRACK.getDefaultState().setValue(TrackBlock.SHAPE, track.shape()), 3);
+                    }
+                }
+            });
         }
 
         return true;
+    }
+
+    private void placeCurveTrack(WorldGenLevel world, TrackPutInfo track) {
+        BlockPos startPos = track.pos();
+        world.setBlock(startPos, AllBlocks.TRACK.getDefaultState().setValue(TrackBlock.SHAPE, track.shape()).setValue(TrackBlock.HAS_BE,true), 3);
+
+        Vec3 offset = track.bezier().endOffset();
+        BlockPos endPos = startPos.offset((int) offset.x, (int) offset.y, (int) offset.z);
+        world.setBlock(endPos, AllBlocks.TRACK.getDefaultState().setValue(TrackBlock.SHAPE, track.endShape()).setValue(TrackBlock.HAS_BE,true), 3);
+
+        Vec3 start1 = track.bezier().start().add(getStartVec(track.bezier().startAxis()));
+        Vec3 start2 = track.bezier().start().add(track.bezier().endOffset()).add(getStartVec(track.bezier().endAxis()));
+
+        Vec3 axis1 = track.bezier().startAxis();  // X轴正方向
+        Vec3 axis2 = track.bezier().endAxis();  // Z轴正方向
+
+        Vec3 normal1 = new Vec3(0, 1, 0);
+        Vec3 normal2 = new Vec3(0, 1, 0);
+
+        BezierConnection connection = new BezierConnection(
+                Couple.create(startPos, endPos),
+                Couple.create(start1, start2),
+                Couple.create(axis1, axis2),
+                Couple.create(normal1, normal2),
+                true,  // teToTe
+                false, // hasGirder
+                TrackMaterial.ANDESITE
+        );
+
+        var tbe1 = world.getBlockEntity(startPos);
+        var tbe2 = world.getBlockEntity(endPos);
+
+        if(tbe1 != null && tbe2 != null){
+            ((ITrackPreGenExtension) tbe1).addConnectionToPreGen(connection);
+            ((ITrackPreGenExtension) tbe2).addConnectionToPreGen(connection.secondary());
+        }
+    }
+
+    private static Vec3 getStartVec(Vec3 dir) {
+        double offX;
+        if (Math.abs(dir.x) < 1e-6) {
+            offX = 0.5;
+        } else if (dir.x < 0) {
+            offX = 0;
+        } else {
+            offX = 1;
+        }
+
+        double offZ;
+        if (Math.abs(dir.z) < 1e-6) {
+            offZ = 0.5;
+        } else if (dir.z < 0) {
+            offZ = 0;
+        } else {
+            offZ = 1;
+        }
+
+        return new Vec3(offX, 0, offZ);
     }
 
     private static void placeRoadbed(RailwayMap railwayMap, ChunkPos cPos, ChunkAccess chunk, WorldGenLevel world) {

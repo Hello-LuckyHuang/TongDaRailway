@@ -371,7 +371,10 @@ public class RoutePlanner {
                 Vec3 pB = segment.get(j+1);
                 if (pA.y == pB.y) {
                     // 高度相同，使用直线
-                    for (int k = 0; k < Math.abs(pA.x - pB.x); k++) {
+                    int xd = (int) Math.abs(pA.x - pB.x);
+                    int zd = (int) Math.abs(pA.z - pB.z);
+                    int seg = (xd == 0 ? zd: xd);
+                    for (int k = 0; k < seg; k++) {
                         int x = (int) (pA.x + MyMth.getSign(pB.x - pA.x)*k);
                         int z = (int) (pA.z + MyMth.getSign(pB.z - pA.z)*k);
                         trackPutInfos.add(TrackPutInfo.getByDir(
