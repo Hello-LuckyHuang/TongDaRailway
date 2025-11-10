@@ -423,8 +423,8 @@ public class RoutePlanner {
 
         // 车站路线终点连接
         trackPutInfos.add(TrackPutInfo.getByDir(
-                new BlockPos((int) con.end().x, (int) con.end().y, (int) con.end().z),
-                con.endDir(),
+                new BlockPos((int) lastPos.x, (int) lastPos.y, (int) lastPos.z),
+                lastDir,
                 new TrackPutInfo.BezierInfo(
                         lastPos,
                         lastDir,

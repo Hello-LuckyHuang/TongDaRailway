@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class TrackSpawnerBlockEntity extends BlockEntity {
-    private static final int SPAWN_RANGE = 20;
+    private static final int SPAWN_RANGE = 50;
     protected boolean spawnedTrack = false;
 
     private final List<TrackPutInfo> trackPutInfos = new ArrayList<>();
@@ -54,10 +54,7 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
                         });
                     } else {
                         if (!world.getBlockState(track.pos()).is(AllBlocks.TRACK)) {
-                            BlockState trackState = AllBlocks.TRACK.getDefaultState()
-                                    .setValue(TrackBlock.SHAPE, track.shape())
-                                    .setValue(TrackBlock.HAS_BE, true);
-                            world.setBlock(track.pos(), trackState, 3);
+                            world.setBlock(track.pos(), AllBlocks.TRACK.getDefaultState().setValue(TrackBlock.SHAPE, track.shape()), 3);
                         }
                     }
                 }
