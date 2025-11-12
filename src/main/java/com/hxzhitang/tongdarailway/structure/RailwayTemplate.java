@@ -318,7 +318,10 @@ class VoxelGrid {
         if (x >= 0 && x < size.getX() && y >= 0 && y < size.getY() && z >= 0 && z < size.getZ()) {
             int paletteIndex = voxelGrid[x][y][z];
             if (paletteIndex > 0 && paletteIndex < palette.size()) {
-                return palette.get(paletteIndex);
+                var blockState = palette.get(paletteIndex);
+                if (blockState.is(Blocks.STRUCTURE_VOID))
+                    return null; // 结构空位
+                return blockState;
             }
         }
         return null; // 空气或无方块
