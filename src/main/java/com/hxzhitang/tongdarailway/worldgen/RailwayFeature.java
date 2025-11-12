@@ -178,7 +178,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
 
             var nearestPoint0 = result0.nearestPoint;
             var frame0 = result0.frame;
-            var normal0 = frame0.normal; // 法线
+            var normal0 = frame0.getVerticalXZNormal(); // 法线
 
             // 2.扫描平面
             double x0 = nearestPoint0.x, y0 = nearestPoint0.y, z0 = nearestPoint0.z;

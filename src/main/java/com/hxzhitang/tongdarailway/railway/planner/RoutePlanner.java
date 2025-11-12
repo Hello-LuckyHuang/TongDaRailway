@@ -5,9 +5,14 @@ import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.*;
+import com.simibubi.create.content.trains.track.ITrackBlock;
+import net.createmod.catnip.math.AngleHelper;
+import net.createmod.catnip.math.VecHelper;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
@@ -98,13 +103,7 @@ public class RoutePlanner {
         List<int[]> handledHeightWay = handleHeight(way, level, costMap, connectionGenInfo);
         // 结果转为中心图坐标系
         handledHeightWay = handledHeightWay.stream().map(AStarPathfinder::pic2RegionPos).toList();
-        List<List<int[]>> straightPaths = StraightPathFinder.findStraightPaths(handledHeightWay);
-        straightPaths.removeIf(list -> list.size() <= 2);
-        var poi = handlePath(straightPaths, 2); // 处理路径
-        var route = connectPaths(connectionGenInfo, poi);
-        var track = connectTrack(connectionGenInfo, poi);
-
-        return new ResultWay(route, track);
+        return connectTrackNew(handledHeightWay, connectionGenInfo);
     }
 
     /**
@@ -189,373 +188,89 @@ public class RoutePlanner {
     }
 
     /**
-     * 处理路径，裁剪路径留转弯空间并转换为世界坐标系
-     * @param straightPaths 带高路径(区域内坐标)
-     * @param cutDistance 开始剪裁路径的距离
-     * @return 所有直线路径(世界坐标)
+     * 将直线路径段通过三阶贝塞尔曲线平滑连接
+     * @param path 路线的端点
+     * @return 连接后的复合曲线
      */
-    public List<List<Vec3>> handlePath(List<List<int[]>> straightPaths, double cutDistance) {
-        // 创建一个副本用于处理，避免修改原始数据
-        List<List<int[]>> processedPaths = new ArrayList<>();
-        for (List<int[]> path : straightPaths) {
-            List<int[]> copy = new ArrayList<>();
-            for (int[] point : path) {
-                copy.add(new int[]{point[0], point[1], point[2]});
-            }
-            processedPaths.add(copy);
+    private ResultWay connectTrackNew(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
+        // 转换为世界坐标系
+        List<Vec3> path0 = new ArrayList<>();
+
+        for (int i = 1; i < path.size() - 1; i++) {
+            int[] point = path.get(i);
+            path0.add(MyMth.inRegionPos2WorldPos(
+                    regionPos,
+                    new Vec3(point[0], point[2], point[1])
+                            .multiply(16.0/samplingNum, 1, 16.0/samplingNum)
+            ));
         }
 
-        // 处理相邻路径段之间的连接和裁剪
-        for (int i = 0; i < processedPaths.size() - 1; i++) {
-            List<int[]> currentPath = processedPaths.get(i);
-            List<int[]> nextPath = processedPaths.get(i + 1);
+        // 连接线路和车站
+        Vec3 first = path0.getFirst();
+        Vec3 last = path0.getLast();
+        Vec3 firstDir = first.subtract(path0.get(1)).normalize();
+        Vec3 lastDir = last.subtract(path0.get(path0.size()-2)).normalize();
 
-            if (currentPath.size() < 2 || nextPath.size() < 2) {
-                continue;
+        ResultWay result = new ResultWay(new CurveRoute.CompositeCurve(), new ArrayList<>());
+
+        // 车站起点连接
+        Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(30));
+        if (con.startDir().dot(con.exitDir()) > 0.999) {
+            result.addLine(con.start(), pA);
+        } else {
+            result.addBezier(con.start(), con.startDir(), pA.subtract(con.start()), con.exitDir().reverse());
+        }
+        result.addBezier(pA, con.exitDir(), first.subtract(pA), firstDir);
+
+
+        // 从第二个点开始向下找到倒数第二个点
+        a:
+        for (int i = 0; i < path0.size() - 1; i++) {
+            int j = Math.min(8, path0.size() - 1 - i);
+            // 检查前方一定范围内是否有可以合法连接的点
+            Vec3 startPos = path0.get(i);
+            Vec3 startDir;
+            if (i == 0)
+                startDir = path0.get(i+1).subtract(path0.get(i)).multiply(1,0,1).normalize();
+            else
+                startDir = path0.get(i).subtract(path0.get(i-1)).multiply(1,0,1).normalize();
+
+            // 最小检查到前面两个点
+            while (j >= 2) {
+                Vec3 endPos0 = path0.get(i + j);
+                Vec3 endDir0 = path0.get(i+j).subtract(path0.get(i+j-1)).multiply(1,0,1).normalize();
+
+                if (isValidTrackPlacement(startPos, startDir, endPos0, endDir0.reverse())) {
+                    if (startPos.y == endPos0.y && startDir.dot(endDir0) > 0.9999 && startDir.dot(endPos0.subtract(startPos).normalize()) > 0.9999) {
+                        result.addLine(startPos, endPos0);
+                    } else {
+                        result.addBezier(startPos, startDir, endPos0.subtract(startPos), endDir0.reverse());
+                    }
+                    i += j-1;
+                    continue a;
+                }
+                j--;
             }
-
-            // 获取当前路径的终点
-            int[] currentEndPoint = currentPath.getLast();
-            // 获取下一个路径的起点
-            int[] nextStartPoint = nextPath.getFirst();
-
-            // 计算两点之间的距离
-            double distance = Math.sqrt(
-                    Math.pow(nextStartPoint[0] - currentEndPoint[0], 2) +
-                            Math.pow(nextStartPoint[1] - currentEndPoint[1], 2)
-            );
-
-            // 如果距离过近，需要裁剪路径为贝塞尔曲线提供空间
-            if (distance < cutDistance) { // 阈值可根据需要调整
-                // 裁剪当前路径的末尾
-                trimPathEnd(currentPath, (int) (cutDistance/2));
-                // 裁剪下一个路径的开始
-                trimPathStart(nextPath, (int) (cutDistance/2));
+            // 未检查到，只能直接强行连接下一个
+            Vec3 endPos = path0.get(i + 1);
+            Vec3 endDir = path0.get(i+1).subtract(path0.get(i)).multiply(1,0,1).normalize();
+            if (startPos.y == endPos.y && startDir.dot(endDir) > 0.9999 && startDir.dot(endPos.subtract(startPos).normalize()) > 0.9999) {
+                result.addLine(startPos, endPos);
+            } else {
+                result.addBezier(startPos, startDir, endPos.subtract(startPos), endDir.reverse());
             }
         }
 
-        List<List<Vec3>> result = new ArrayList<>();
-        for (List<int[]> segment : processedPaths) {
-            List<Vec3> path = new ArrayList<>();
-            for (int[] point : segment) {
-                path.add(MyMth.inRegionPos2WorldPos(
-                        regionPos,
-                        new Vec3(point[0], point[2], point[1])
-                                .multiply(16.0/samplingNum, 1, 16.0/samplingNum)
-                ));
-            }
-            result.add(path);
+        // 终点车站连接
+        Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(30));
+        result.addBezier(last, lastDir, pB.subtract(last), con.exitDir().reverse());
+        if (con.endDir().dot(con.exitDir().reverse()) > 0.999) {
+            result.addLine(pB, con.end());
+        } else {
+            result.addBezier(pB, con.exitDir(), con.end().subtract(pB), con.endDir());
         }
 
         return result;
-    }
-
-    /**
-     * 将直线路径段通过三阶贝塞尔曲线平滑连接
-     * @param pathPoi 所有直线路径段的端点
-     * @return 连接后的复合曲线
-     */
-    private CurveRoute.CompositeCurve connectPaths(StationPlanner.ConnectionGenInfo con, List<List<Vec3>> pathPoi) {
-        CurveRoute.CompositeCurve compositeCurve = new CurveRoute.CompositeCurve();
-
-        if (pathPoi == null || pathPoi.isEmpty()) {
-            return compositeCurve;
-        }
-
-        // 起点数据
-        List<Vec3> startSegment = pathPoi.getFirst();
-        Vec3 firstPos = startSegment.getFirst();
-        Vec3 firstDir = firstPos.subtract(startSegment.get(1)).multiply(1,0,1).normalize();
-        // 终点数据
-        List<Vec3> lastSegment = pathPoi.getLast();
-        Vec3 lastPos = lastSegment.getLast();
-        Vec3 lastDir = lastPos.subtract(lastSegment.get(lastSegment.size()-2)).multiply(1,0,1).normalize();
-
-        // 车站路线起点连接
-        Vec3 startConnectPos;
-        Vec3 startConnectDir;
-        if (firstPos.distanceTo(con.start()) > lastPos.distanceTo(con.start())) {
-            startConnectPos = lastPos;
-            startConnectDir = lastDir;
-        } else {
-            startConnectPos = firstPos;
-            startConnectDir = firstDir;
-        }
-        CurveRoute.CubicBezier startConnect = CurveRoute.CubicBezier.getCubicBezier(
-                con.start(),
-                con.startDir(),
-                startConnectPos.subtract(con.start()),
-                startConnectDir
-        );
-        compositeCurve.addSegment(startConnect);
-
-        // 处理路径
-        for (int i = 0; i < pathPoi.size(); i++) {
-            // 直线片段
-            List<Vec3> segment = pathPoi.get(i);
-            for (int j = 0; j < segment.size() - 1; j++) {
-                Vec3 pA = segment.get(j);
-                Vec3 pB = segment.get(j+1);
-                compositeCurve.addSegment(new CurveRoute.LineSegment(pA, pB));
-            }
-            // 转弯贝塞尔曲线段
-            if (i < pathPoi.size() - 1) {
-                List<Vec3> nextSegment = pathPoi.get(i+1);
-                // 使用贝塞尔曲线连接两段路径
-                var vecA = new Vec3(segment.getLast().x(), 0, segment.getLast().z()).subtract(
-                        new Vec3(segment.getFirst().x(), 0, segment.getFirst().z()));
-                var vecB = new Vec3(nextSegment.getFirst().x(), 0, nextSegment.getFirst().z()).subtract(
-                        new Vec3(nextSegment.getLast().x(), 0, nextSegment.getLast().z()));
-                var prevDirection = vecA.normalize();
-                var currentDirection = vecB.normalize();
-                CurveRoute.CubicBezier bezierSegment = CurveRoute.CubicBezier.getCubicBezier(
-                        segment.getLast(),
-                        prevDirection,                                   // 起点切线方向
-                        nextSegment.getFirst().subtract(segment.getLast()),
-                        currentDirection                                 // 终点切线方向
-                );
-                compositeCurve.addSegment(bezierSegment);
-            }
-        }
-
-        // 车站路线终点连接
-        Vec3 endConnectPos;
-        Vec3 endConnectDir;
-        if (firstPos.distanceTo(con.end()) > lastPos.distanceTo(con.end())) {
-            endConnectPos = lastPos;
-            endConnectDir = lastDir;
-        } else {
-            endConnectPos = firstPos;
-            endConnectDir = firstDir;
-        }
-        CurveRoute.CubicBezier lastConnect = CurveRoute.CubicBezier.getCubicBezier(
-                endConnectPos,
-                endConnectDir,
-                con.end().subtract(endConnectPos),
-                con.endDir()
-        );
-        compositeCurve.addSegment(lastConnect);
-
-        return compositeCurve;
-    }
-
-    private List<TrackPutInfo> connectTrack(StationPlanner.ConnectionGenInfo con, List<List<Vec3>> pathPoi) {
-        List<TrackPutInfo> trackPutInfos = new ArrayList<>();
-
-        // 起点数据
-        List<Vec3> startSegment = pathPoi.getFirst();
-        Vec3 firstPos = startSegment.getFirst();
-        Vec3 firstDir = firstPos.subtract(startSegment.get(1)).multiply(1,0,1).normalize();
-        // 终点数据
-        List<Vec3> lastSegment = pathPoi.getLast();
-        Vec3 lastPos = lastSegment.getLast();
-        Vec3 lastDir = lastPos.subtract(lastSegment.get(lastSegment.size()-2)).multiply(1,0,1).normalize();
-
-        trackPutInfos.add(TrackPutInfo.getByDir(
-                new BlockPos((int) con.start().x, (int) con.start().y, (int) con.start().z),
-                con.startDir(),
-                new TrackPutInfo.BezierInfo(
-                        con.start(),
-                        con.startDir(),
-                        firstPos.subtract(con.start()),
-                        firstDir
-                )
-        ));
-
-        // 处理路径
-        for (int i = 0; i < pathPoi.size(); i++) {
-            // 直线片段
-            List<Vec3> segment = pathPoi.get(i);
-            for (int j = 0; j < segment.size() - 1; j++) {
-                Vec3 pA = segment.get(j);
-                Vec3 pB = segment.get(j+1);
-                if (pA.y == pB.y) {
-                    // 高度相同，使用直线
-                    // fix #2
-                    int n = Math.max((int) Math.abs(pA.x - pB.x), (int) Math.abs(pA.z - pB.z));
-                    for (int k = 0; k < n; k++) {
-                        int x = (int) (pA.x + MyMth.getSign(pB.x - pA.x)*k);
-                        int z = (int) (pA.z + MyMth.getSign(pB.z - pA.z)*k);
-                        trackPutInfos.add(TrackPutInfo.getByDir(
-                                new BlockPos(x, (int) pA.y, z),
-                                pB.subtract(pA),
-                                null
-                        ));
-                    }
-                } else {
-                    // 使用贝塞尔曲线
-                    Vec3 dir = pB.subtract(pA).multiply(1, 0, 1).normalize();
-                    trackPutInfos.add(TrackPutInfo.getByDir(
-                            new BlockPos((int) pA.x, (int) pA.y, (int) pA.z),
-                            dir,
-                            new TrackPutInfo.BezierInfo(
-                                    pA,
-                                    dir,                                   // 起点切线方向
-                                    pB.subtract(pA),
-                                    dir.reverse()
-                            )
-                    ));
-                }
-            }
-            // 转弯贝塞尔曲线段
-            if (i < pathPoi.size() - 1) {
-                List<Vec3> nextSegment = pathPoi.get(i+1);
-                // 使用贝塞尔曲线连接两段路径
-                var vecA = new Vec3(segment.getLast().x(), 0, segment.getLast().z()).subtract(
-                        new Vec3(segment.getFirst().x(), 0, segment.getFirst().z()));
-                var vecB = new Vec3(nextSegment.getFirst().x(), 0, nextSegment.getFirst().z()).subtract(
-                        new Vec3(nextSegment.getLast().x(), 0, nextSegment.getLast().z()));
-                var prevDirection = vecA.normalize();
-                var currentDirection = vecB.normalize();
-                var pos = segment.getLast();
-                trackPutInfos.add(TrackPutInfo.getByDir(
-                        new BlockPos((int) pos.x, (int) pos.y, (int) pos.z),
-                        prevDirection,
-                        new TrackPutInfo.BezierInfo(
-                                pos,
-                                prevDirection,                                   // 起点切线方向
-                                nextSegment.getFirst().subtract(segment.getLast()),
-                                currentDirection
-                        )
-                ));
-            }
-        }
-
-        // 车站路线终点连接
-        trackPutInfos.add(TrackPutInfo.getByDir(
-                new BlockPos((int) lastPos.x, (int) lastPos.y, (int) lastPos.z),
-                lastDir,
-                new TrackPutInfo.BezierInfo(
-                        lastPos,
-                        lastDir,
-                        con.end().subtract(lastPos),
-                        con.endDir()
-                )
-        ));
-
-        return trackPutInfos;
-    }
-
-
-    /**
-     * 裁剪路径的起始部分
-     * @param path 要裁剪的路径
-     * @param trimLength 要裁剪的长度
-     */
-    private void trimPathStart(List<int[]> path, int trimLength) {
-        // 确保不会将路径裁剪得太短
-        if (path.size() <= trimLength + 1) {
-            return;
-        }
-
-        // 移除起始点
-        for (int i = 0; i < trimLength && path.size() > 2; i++) {
-            path.remove(0);
-        }
-    }
-
-    /**
-     * 裁剪路径的末尾部分
-     * @param path 要裁剪的路径
-     * @param trimLength 要裁剪的长度
-     */
-    private void trimPathEnd(List<int[]> path, int trimLength) {
-        // 确保不会将路径裁剪得太短
-        if (path.size() <= trimLength + 1) {
-            return;
-        }
-
-        // 移除末尾点
-        for (int i = 0; i < trimLength && path.size() > 2; i++) {
-            path.remove(path.size() - 1);
-        }
-    }
-
-    public static class StraightPathFinder {
-        // 定义八个方向的向量
-        private static final int[][] DIRECTIONS = {
-                {0, 1},   // N
-                {1, 1},   // NE
-                {1, 0},   // E
-                {1, -1},  // SE
-                {0, -1},  // S
-                {-1, -1}, // SW
-                {-1, 0},  // W
-                {-1, 1}   // NW
-        };
-
-        /**
-         * 找出所有未拐弯的直线路径
-         */
-        public static List<List<int[]>> findStraightPaths(List<int[]> path) {
-            List<List<int[]>> straightPaths = new ArrayList<>();
-
-            if (path == null || path.size() < 2) {
-                return straightPaths;
-            }
-
-            int startIndex = 0;
-
-            while (startIndex < path.size() - 1) {
-                int[] currentPoint = path.get(startIndex);
-                int[] nextPoint = path.get(startIndex + 1);
-
-                // 计算初始方向
-                int direction = getDirection(currentPoint, nextPoint);
-
-                // 寻找相同方向的连续点
-                List<int[]> straightPath = new ArrayList<>();
-                straightPath.add(currentPoint);
-                straightPath.add(nextPoint);
-
-                int currentIndex = startIndex + 1;
-
-                while (currentIndex < path.size() - 1) {
-                    int[] point1 = path.get(currentIndex);
-                    int[] point2 = path.get(currentIndex + 1);
-
-                    int currentDirection = getDirection(point1, point2);
-
-                    if (currentDirection == direction) {
-                        straightPath.add(point2);
-                        currentIndex++;
-                    } else {
-                        break;
-                    }
-                }
-
-                // 只有当路径长度大于等于2时才添加
-                if (straightPath.size() >= 2) {
-                    straightPaths.add(straightPath);
-                }
-
-                // 移动到下一个起点
-                startIndex = currentIndex;
-            }
-
-            return straightPaths;
-        }
-
-        /**
-         * 计算两点之间的方向
-         */
-        private static int getDirection(int[] point1, int[] point2) {
-            int dx = point2[0] - point1[0];
-            int dz = point2[1] - point1[1];
-
-            // 标准化方向向量（保持方向但长度为1）
-            if (dx != 0) dx = dx / Math.abs(dx);
-            if (dz != 0) dz = dz / Math.abs(dz);
-
-            // 查找匹配的方向
-            for (int i = 0; i < DIRECTIONS.length; i++) {
-                if (DIRECTIONS[i][0] == dx && DIRECTIONS[i][1] == dz) {
-                    return i;
-                }
-            }
-
-            return -1; // 不应该发生，因为所有八个方向都覆盖了
-        }
     }
 
     private static List<double[]> adjustmentHeight(List<double[]> path) {
@@ -634,8 +349,132 @@ public class RoutePlanner {
         return adjustedPath;
     }
 
+    /**
+     * 验证轨道放置的合法性
+     * @param startPos 起点坐标
+     * @param startAxis 起点切线向量
+     * @param endPos 终点坐标
+     * @param endAxis 终点切线向量
+     * @return true表示合法,false表示非法
+     */
+    public static boolean isValidTrackPlacement(
+            Vec3 startPos,
+            Vec3 startAxis,
+            Vec3 endPos,
+            Vec3 endAxis
+    ) {
+        // 1. 检查距离限制 (默认最大100格)
+        double maxLength = 100.0;
+        if (startPos.distanceToSqr(endPos) > maxLength * maxLength) {
+            return false; // 距离过远
+        }
+
+        // 2. 检查是否为同一点
+        if (startPos.equals(endPos)) {
+            return false; // 不能连接到自己
+        }
+
+        // 3. 归一化轴向量
+        Vec3 normedAxis1 = startAxis.normalize();
+        Vec3 normedAxis2 = endAxis.normalize();
+
+        // 4. 检查是否平行
+        double[] intersect = VecHelper.intersect(startPos, endPos, normedAxis1, normedAxis2, Direction.Axis.Y);
+        boolean parallel = intersect == null;
+
+        // 5. 检查垂直连接 (平行且方向相同)
+        if (parallel && normedAxis1.dot(normedAxis2) > 0) {
+            return false; // 不能垂直连接
+        }
+
+        // 6. 检查转弯角度
+        if (!parallel) {
+            double a1 = Mth.atan2(normedAxis2.z, normedAxis2.x);
+            double a2 = Mth.atan2(normedAxis1.z, normedAxis1.x);
+            double angle = a1 - a2;
+            float absAngle = Math.abs(AngleHelper.deg(angle));
+
+            // 只能转弯最多90度
+            if (absAngle < 60 || absAngle > 300) {
+                return false;
+            }
+
+            // 检查最小转弯半径
+            intersect = VecHelper.intersect(startPos, endPos, normedAxis1, normedAxis2, Direction.Axis.Y);
+            if (intersect == null || intersect[0] < 0 || intersect[1] < 0) {
+                return false; // 转弯过于尖锐
+            }
+
+            double dist1 = Math.abs(intersect[0]);
+            double dist2 = Math.abs(intersect[1]);
+            double turnSize = Math.min(dist1, dist2) - 0.1;
+
+            boolean ninety = (absAngle + 0.25f) % 90 < 1;
+            double minTurnSize = ninety ? 7 : 3.25;
+
+            if (turnSize < minTurnSize) {
+                return false; // 转弯半径过小
+            }
+        }
+
+        // 7. 检查S型弯曲
+        if (parallel) {
+            Vec3 cross2 = normedAxis2.cross(new Vec3(0, 1, 0));
+            double[] sTest = VecHelper.intersect(startPos, endPos, normedAxis1, cross2, Direction.Axis.Y);
+
+            if (sTest != null && sTest[0] < 0) {
+                return false; // 不能垂直连接
+            }
+
+            if (sTest != null && !Mth.equal(Math.abs(sTest[1]), 0)) {
+                double t = Math.abs(sTest[0]);
+                double u = Math.abs(sTest[1]);
+                double targetT = u <= 1 ? 3 : u * 2;
+
+                if (t < targetT) {
+                    return false; // S型弯曲过于尖锐
+                }
+            }
+        }
+
+        // 所有检查通过
+        return true;
+    }
+
     public record ResultWay(
             CurveRoute.CompositeCurve way,
             List<TrackPutInfo> trackPutInfos
-    ){}
+    ) {
+        public void addLine(Vec3 start, Vec3 end) {
+            way.addSegment(new CurveRoute.LineSegment(start, end));
+            int n = Math.max((int) Math.abs(start.x - end.x), (int) Math.abs(start.z - end.z));
+            for (int k = 0; k <= n; k++) {
+                int x = (int) (start.x + MyMth.getSign(end.x - start.x)*k);
+                int z = (int) (start.z + MyMth.getSign(end.z - start.z)*k);
+                trackPutInfos.add(TrackPutInfo.getByDir(
+                        new BlockPos(x, (int) start.y, z),
+                        end.subtract(start),
+                        null
+                ));
+            }
+        }
+
+        public void addBezier(Vec3 start, Vec3 startDir, Vec3 endOffset, Vec3 endDir) {
+            if (Math.abs(startDir.dot(endDir)) > 0.9999 && startDir.dot(endOffset.normalize()) > 0.9999) {
+                way.addSegment(new CurveRoute.LineSegment(start, start.add(endOffset)));
+            } else {
+                way.addSegment(CurveRoute.CubicBezier.getCubicBezier(start, startDir, endOffset, endDir));
+            }
+            trackPutInfos.add(TrackPutInfo.getByDir(
+                    new BlockPos((int) start.x, (int) start.y, (int) start.z),
+                    startDir,
+                    new TrackPutInfo.BezierInfo(
+                            start,
+                            startDir,
+                            endOffset,
+                            endDir
+                    )
+            ));
+        }
+    }
 }

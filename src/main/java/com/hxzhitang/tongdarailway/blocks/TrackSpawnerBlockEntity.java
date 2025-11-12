@@ -45,9 +45,9 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
             if (level instanceof ServerLevel world) {
                 for (TrackPutInfo track : entity.trackPutInfos) {
                     if (track.bezier() != null) {
-                        // 高差过大拒绝生成
-                        if (Math.abs(track.bezier().endOffset().y) > 15)
-                            continue;
+//                        //高差过大拒绝生成
+//                        if (Math.abs(track.bezier().endOffset().y) > 15)
+//                            continue;
                         placeCurveTrack(world, track);
                         Objects.requireNonNull(level.getServer()).execute(() -> {
                             placeCurveTrackEntity(world, track);

@@ -148,6 +148,16 @@ public class CurveRoute {
             return term1.add(term2).add(term3).normalize();
         }
 
+        /**
+         * 我们认为路面不可能出现左右倾斜，但是拿到的标架却可能有左右倾斜
+         * 所以这里我们计算一个和切线垂直，以及切线和此向量张成的平面和xz平面垂直的
+         * y坐标为正的法向量
+         * @return 垂直法向量
+         */
+        public Point3D getVerticalXZNormal() {
+            return new Point3D(-tangent.x*tangent.y, 1-Math.pow(tangent.y,2), -tangent.z*tangent.y).normalize();
+        }
+
         @Override
         public String toString() {
             return String.format("pos: %s, tangent: %s, normal: %s, binormal: %s",
@@ -761,7 +771,8 @@ public class CurveRoute {
     public static Frame adjustmentFrame(Frame inputFrame) {
         // 创建新的Frame对象，避免修改原始对象
         Frame outputFrame = new Frame(inputFrame.position, inputFrame.tangent, inputFrame.normal, inputFrame.binormal);
-        outputFrame.position = inputFrame.position; // 位置保持不变
+        // 取整标架y坐标放置某些时候标架上的y坐标抖动
+        outputFrame.position = inputFrame.position;
 
         // 强制标架法线朝上
         var worldUp = new CurveRoute.Point3D(0, 1, 0);
@@ -780,63 +791,6 @@ public class CurveRoute {
         outputFrame.binormal = outputFrame.tangent.cross(outputFrame.normal);
 
         return outputFrame;
-    }
-
-    /**
-     * 计算需要旋转的角度，使副法线平行于xz平面
-     */
-    private static double calculateRotationAngle(Point3D binormal) {
-        // 副法线在xz平面上的投影长度
-        double projectionLength = Math.sqrt(binormal.x * binormal.x + binormal.z * binormal.z);
-
-        if (projectionLength < 1e-10) {
-            // 如果投影长度接近0，说明副法线几乎垂直于xz平面
-            // 需要旋转90度
-            return Math.PI / 2;
-        }
-
-        // 计算当前副法线与xz平面的夹角
-        // 使用点积计算：cos(θ) = (binormal · (0,1,0)) / |binormal|
-        // 但我们想要的是与xz平面的夹角，所以用反正切计算
-        double angle = Math.atan2(binormal.y, projectionLength);
-
-        // 我们需要旋转的角度是负的这个角度，因为我们要消除y分量
-        return -angle;
-    }
-
-    /**
-     * 绕指定轴旋转点
-     */
-    private static Point3D rotateAroundAxis(Point3D point, Point3D axis, double angle) {
-        // 归一化旋转轴
-        double length = Math.sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
-        double ux = axis.x / length;
-        double uy = axis.y / length;
-        double uz = axis.z / length;
-
-        double cosA = Math.cos(angle);
-        double sinA = Math.sin(angle);
-        double oneMinusCosA = 1 - cosA;
-
-        // 旋转矩阵元素
-        double m00 = cosA + ux * ux * oneMinusCosA;
-        double m01 = ux * uy * oneMinusCosA - uz * sinA;
-        double m02 = ux * uz * oneMinusCosA + uy * sinA;
-
-        double m10 = uy * ux * oneMinusCosA + uz * sinA;
-        double m11 = cosA + uy * uy * oneMinusCosA;
-        double m12 = uy * uz * oneMinusCosA - ux * sinA;
-
-        double m20 = uz * ux * oneMinusCosA - uy * sinA;
-        double m21 = uz * uy * oneMinusCosA + ux * sinA;
-        double m22 = cosA + uz * uz * oneMinusCosA;
-
-        // 应用旋转矩阵
-        double newX = m00 * point.x + m01 * point.y + m02 * point.z;
-        double newY = m10 * point.x + m11 * point.y + m12 * point.z;
-        double newZ = m20 * point.x + m21 * point.y + m22 * point.z;
-
-        return new Point3D(newX, newY, newZ);
     }
 
     /*

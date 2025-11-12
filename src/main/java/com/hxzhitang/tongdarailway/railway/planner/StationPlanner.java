@@ -149,7 +149,7 @@ public class StationPlanner {
     private static int[] getConnectStart(BlockPos exitPos, Vec3 dir, Vec3 offset, Vec3 exitDir) {
         Vec3 pos = Vec3.atCenterOf(exitPos);
 //        Vec3 addOff = offset.normalize().scale(30);
-        Vec3 addOff = exitDir.scale(50);
+        Vec3 addOff = exitDir.scale(40);
         Vec3 start = pos.add(dir.scale(30).add(addOff));
         // 最后的y尽量确保出站线和出站口在同高度
         return new int[] {(int) start.x, (int) start.z, exitPos.getY()};
@@ -208,7 +208,8 @@ public class StationPlanner {
             Vec3 end,
             Vec3 endDir,
             int[] connectStart,
-            int[] connectEnd
+            int[] connectEnd,
+            Vec3 exitDir
     ) {
         public static ConnectionGenInfo getConnectionInfo(StationStructure.Exit A, StationStructure.Exit B, Vec3 exitDir) {
                 Vec3 APos = new Vec3(A.exitPos().getX(), A.exitPos().getY(), A.exitPos().getZ());
@@ -219,7 +220,8 @@ public class StationPlanner {
                         BPos,
                         B.dir(),
                         getConnectStart(A.exitPos(), A.dir(), BPos.subtract(APos), exitDir),
-                        getConnectStart(B.exitPos(), B.dir(), APos.subtract(BPos), exitDir.reverse())
+                        getConnectStart(B.exitPos(), B.dir(), APos.subtract(BPos), exitDir.reverse()),
+                        exitDir
                 );
             }
         }
