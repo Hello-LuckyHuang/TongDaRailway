@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class TrackSpawnerBlockEntity extends BlockEntity {
-    private static final int SPAWN_RANGE = 50;
+    private static final int SPAWN_RANGE = 100;
     protected boolean spawnedTrack = false;
 
     private final List<TrackPutInfo> trackPutInfos = new ArrayList<>();
