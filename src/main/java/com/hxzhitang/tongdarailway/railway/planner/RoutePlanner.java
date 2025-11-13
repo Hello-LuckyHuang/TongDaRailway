@@ -252,16 +252,8 @@ public class RoutePlanner {
                 j--;
             }
             // 未检查到，只能直接强行连接
-            Vec3 endPos;
-            Vec3 endDir;
-            if (i + 1 == path0.size() - 1) {
-                endPos = path0.get(i + 1);
-                endDir = path0.get(i + 1).subtract(path0.get(i)).multiply(1,0,1).normalize();
-            } else {
-                endPos = path0.get(i + 2);
-                endDir = path0.get(i + 2).subtract(path0.get(i + 1)).multiply(1,0,1).normalize();
-                i++;
-            }
+            Vec3 endPos = path0.get(i + 1);
+            Vec3 endDir = path0.get(i + 1).subtract(path0.get(i)).multiply(1,0,1).normalize();
             if (startPos.y == endPos.y && startDir.dot(endDir) > 0.9999 && startDir.dot(endPos.subtract(startPos).normalize()) > 0.9999) {
                 result.addLine(startPos, endPos);
             } else {
