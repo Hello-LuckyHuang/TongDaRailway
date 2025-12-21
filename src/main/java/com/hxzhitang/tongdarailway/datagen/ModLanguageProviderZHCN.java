@@ -3,7 +3,7 @@ package com.hxzhitang.tongdarailway.datagen;
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.blocks.ModBlocks;
 import net.minecraft.data.PackOutput;
-import net.neoforged.neoforge.common.data.LanguageProvider;
+import net.minecraftforge.common.data.LanguageProvider;
 
 public class ModLanguageProviderZHCN extends LanguageProvider {
     public ModLanguageProviderZHCN(PackOutput output) {

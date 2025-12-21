@@ -57,7 +57,7 @@ public class StationStructure {
                     .open();
             try (DataInputStream stream = new DataInputStream(new BufferedInputStream(
                     new GZIPInputStream(resourceStream)))) {
-                CompoundTag rootTag = NbtIo.read(stream, NbtAccounter.create(0x20000000L));
+                CompoundTag rootTag = NbtIo.read(stream, new NbtAccounter(0x20000000L));
                 parseStructureNBT(rootTag);
             } catch (Exception e) {
                 Tongdarailway.LOGGER.error(e.getMessage());

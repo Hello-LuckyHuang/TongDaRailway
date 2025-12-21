@@ -16,9 +16,10 @@ public class ModBlockLootProvider extends BlockLootSubProvider {
             ModBlocks.TRACK_SPAWNER.get()
     );
 
-    protected ModBlockLootProvider(HolderLookup.Provider registries) {
-        super(Collections.emptySet(), FeatureFlags.REGISTRY.allFlags(), registries);
+    public ModBlockLootProvider() {
+        super(Collections.emptySet(), FeatureFlags.REGISTRY.allFlags());
     }
+
 
     @Override
     protected void generate() {

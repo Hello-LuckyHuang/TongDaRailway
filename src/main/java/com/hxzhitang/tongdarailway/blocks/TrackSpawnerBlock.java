@@ -1,6 +1,7 @@
 package com.hxzhitang.tongdarailway.blocks;
 
 import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -8,20 +9,20 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
+import static net.minecraft.world.level.levelgen.structure.Structure.simpleCodec;
+
 public class TrackSpawnerBlock extends BaseEntityBlock {
-    public static final MapCodec<TrackSpawnerBlock> CODEC = simpleCodec(TrackSpawnerBlock::new);
+
 
     public TrackSpawnerBlock(Properties p_49795_) {
         super(p_49795_);
     }
 
-    @Override
-    protected MapCodec<? extends BaseEntityBlock> codec() {
-        return CODEC;
-    }
+
 
     public RenderShape getRenderShape(BlockState p_49232_) {
         return RenderShape.MODEL;
