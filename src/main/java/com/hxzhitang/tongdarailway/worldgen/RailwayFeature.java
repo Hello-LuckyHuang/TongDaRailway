@@ -70,7 +70,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         if (Config.useTrackSpawnerPlaceTrack && Config.generateTrackSpawner) {
                 if (builder.regionRailways.containsKey(regionPos)) {
                     if (railwayMap.trackMap.containsKey(cPos)) {
-                        var firstInfo = railwayMap.trackMap.get(cPos).getFirst();
+                        var firstInfo = railwayMap.trackMap.get(cPos).get(0);
                         BlockPos checkPos = firstInfo.pos().offset(0, -1, 0);
                         if (!world.getBlockState(checkPos).is(ModBlocks.TRACK_SPAWNER.get())) {
                             world.setBlock(checkPos, ModBlocks.TRACK_SPAWNER.get().defaultBlockState(), 3);
@@ -96,7 +96,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         }
                         placeCurveTrack(world, track);
                     } else {
-                        if (!world.getBlockState(track.pos()).is(AllBlocks.TRACK)) {
+                        if (!world.getBlockState(track.pos()).is(AllBlocks.TRACK.get())) {
                             world.setBlock(track.pos(), AllBlocks.TRACK.getDefaultState().setValue(TrackBlock.SHAPE, track.shape()), 3);
                         }
                     }
@@ -129,9 +129,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                 Couple.create(start1, start2),
                 Couple.create(axis1, axis2),
                 Couple.create(normal1, normal2),
-                true,  // teToTe
-                false, // hasGirder
-                TrackMaterial.ANDESITE
+                true,true,
         );
 
         var tbe1 = world.getBlockEntity(startPos);

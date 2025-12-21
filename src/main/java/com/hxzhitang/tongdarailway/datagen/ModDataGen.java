@@ -4,14 +4,15 @@ import com.hxzhitang.tongdarailway.Tongdarailway;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistrySetBuilder;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.data.DataGenerator;
 import net.minecraft.data.DataProvider;
 import net.minecraft.data.PackOutput;
 import net.minecraft.data.loot.LootTableProvider;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
-import net.neoforged.neoforge.common.data.DatapackBuiltinEntriesProvider;
-import net.neoforged.neoforge.common.data.ExistingFileHelper;
-import net.neoforged.neoforge.data.event.GatherDataEvent;
-import net.neoforged.neoforge.registries.NeoForgeRegistries;
+import net.minecraftforge.common.data.DatapackBuiltinEntriesProvider;
+import net.minecraftforge.common.data.ExistingFileHelper;
+import net.minecraftforge.data.event.GatherDataEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,42 +23,39 @@ public class ModDataGen extends DatapackBuiltinEntriesProvider {
     public static final RegistrySetBuilder BUILDER = new RegistrySetBuilder()
             .add(Registries.CONFIGURED_FEATURE, ModFeatures::bootstrap)
             .add(Registries.PLACED_FEATURE, ModPlacements::bootstrap)
-            .add(NeoForgeRegistries.Keys.BIOME_MODIFIERS, ModBiomeModifiers::bootstrap);
+            // 注意：1.20.1 中 Forge 的 Biome Modifiers 键名引用
+            .add(ForgeRegistries.Keys.BIOME_MODIFIERS, ModBiomeModifiers::bootstrap);
+
 
     public ModDataGen(PackOutput output, CompletableFuture<HolderLookup.Provider> registries) {
         super(output, registries, BUILDER, Set.of(Tongdarailway.MODID));
     }
 
     public static void gatherData(GatherDataEvent event) {
-        var lp = event.getLookupProvider();
+        DataGenerator generator = event.getGenerator();
+        PackOutput packOutput = generator.getPackOutput();
         ExistingFileHelper efh = event.getExistingFileHelper();
-        event.getGenerator().addProvider(event.includeServer(), (DataProvider.Factory<ModDataGen>) pOutput -> new ModDataGen(pOutput, lp));
 
-        // 语言文件
-        event.getGenerator().addProvider(
+        // 1. 语言文件 (直接 new)
+        // 1. 语言文件 EN_US
+            generator.addProvider(event.includeClient(), new ModLanguageProviderENUS(packOutput));
+
+// 2. 语言文件 ZH_CN
+        generator.addProvider(
                 event.includeClient(),
-                (DataProvider.Factory<ModLanguageProviderENUS>) ModLanguageProviderENUS::new
+                (DataProvider.Factory<ModLanguageProviderZHCN>) pOutput -> new ModLanguageProviderZHCN(pOutput)
         );
-        event.getGenerator().addProvider(
-                event.includeClient(),
-                (DataProvider.Factory<ModLanguageProviderZHCN>) ModLanguageProviderZHCN::new
-        );
-        // 方块状态
-        event.getGenerator().addProvider(
-                event.includeClient(),
-                (DataProvider.Factory<ModBlockStateProvider>) pOutput -> new ModBlockStateProvider(pOutput, Tongdarailway.MODID, efh)
-        );
-        // 战利品表
-        event.getGenerator().addProvider(
-                event.includeServer(),
-                (Factory<ModLootTableProvider>) pOutput -> new ModLootTableProvider(
-                        pOutput,
-                        Collections.emptySet(),
-                        List.of(
-                                new LootTableProvider.SubProviderEntry(ModBlockLootProvider::new, LootContextParamSets.BLOCK)
-                        ),
-                        event.getLookupProvider()
-                )
-        );
+
+        // 2. 方块状态 (直接 new，不要用 pOutput -> ...)
+        generator.addProvider(event.includeClient(), new ModBlockStateProvider(packOutput, Tongdarailway.MODID, efh));
+
+        // 3. 战利品表 (重点：1.20.1 不需要 Factory 强转，且构造函数参数顺序如下)
+        generator.addProvider(event.includeServer(), new LootTableProvider(
+                packOutput,
+                Collections.emptySet(),
+                List.of(new LootTableProvider.SubProviderEntry(ModBlockLootProvider::new, LootContextParamSets.BLOCK))
+                // 注意：1.20.1 的 LootTableProvider 构造函数结尾不需要 lookupProvider 参数
+        ));
     }
 }
+

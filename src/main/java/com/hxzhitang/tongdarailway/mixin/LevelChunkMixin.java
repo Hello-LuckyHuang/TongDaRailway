@@ -15,36 +15,42 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+
 @Mixin(LevelChunk.class)
 public abstract class LevelChunkMixin {
-
-    // This mixin is actually for a bug of Create itself.
-    // Minecraft thinks every EntityBlock has a blockEntity,
-    // And Some of IBEs have no blockEntity in certain situation, such as TrackBlock.
-    // This mixin can eliminate some warning scam in log
-
-    @WrapOperation(
-            method = "setBlockState(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Z)Lnet/minecraft/world/level/block/state/BlockState;",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/state/BlockState;hasBlockEntity()Z")
-    )
-    private boolean hasBlockEntity$patchException(BlockState instance, Operation<Boolean> original, BlockPos pos, BlockState state) {
-        if (state.is(AllBlocks.TRACK) && !state.getValue(TrackBlock.HAS_BE)) {
-            return false;
-        } else {
-            return original.call(instance);
-        }
-    }
 
     @Shadow
     public abstract BlockState getBlockState(BlockPos pos);
 
-    @Inject(
-            method = "promotePendingBlockEntity(Lnet/minecraft/core/BlockPos;Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/world/level/block/entity/BlockEntity;",
-            at = @At(value = "HEAD"), cancellable = true
+    /**
+     * 修复 Create 轨道在没有 BE 时触发的日志警告
+     * 原理：拦截 hasBlockEntity 的判断，如果是轨道且 HAS_BE 为 false，则强制返回 false
+     */
+    @WrapOperation(
+            method = "setBlockState", // 1.20.1 建议使用简写，Mixin 会自动匹配混淆名
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/state/BlockState;hasBlockEntity()Z")
     )
-    private void hasBlockEntity$patchException(BlockPos pos, CompoundTag tag, CallbackInfoReturnable<BlockEntity> cir) {
+    private boolean tongdarailway$patchTrackHasBE(BlockState instance, Operation<Boolean> original, BlockPos pos, BlockState state, boolean isMoving) {
+        // 注意：1.20.1 映射中 setBlockState 的本地变量顺序可能不同
+        // 建议通过 instance 检查当前上下文，或直接检查 state 参数
+        if (state.is(AllBlocks.TRACK.get()) && !state.getValue(TrackBlock.HAS_BE)) {
+            return false;
+        }
+        return original.call(instance);
+    }
+
+    /**
+     * 阻止尝试升级不存在的轨道 BlockEntity
+     */
+    @Inject(
+            method = "promotePendingBlockEntity",
+            at = @At(value = "HEAD"),
+            cancellable = true
+    )
+    private void tongdarailway$preventTrackBEPromotion(BlockPos pos, CompoundTag tag, CallbackInfoReturnable<BlockEntity> cir) {
         BlockState state = this.getBlockState(pos);
-        if (state.is(AllBlocks.TRACK) && !state.getValue(TrackBlock.HAS_BE)) {
+        // 使用 .get() 以确保 1.20.1 RegistryObject 的兼容性
+        if (state.is(AllBlocks.TRACK.get()) && state.hasProperty(TrackBlock.HAS_BE) && !state.getValue(TrackBlock.HAS_BE)) {
             cir.setReturnValue(null);
         }
     }

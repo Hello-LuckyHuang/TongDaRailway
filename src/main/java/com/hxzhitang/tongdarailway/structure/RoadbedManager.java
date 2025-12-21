@@ -9,9 +9,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
-@EventBusSubscriber
+@Mod.EventBusSubscriber
 public class RoadbedManager {
     private static final Map<ResourceLocation, CompoundTag> LOADED_STRUCTURES = new HashMap<>();
 
@@ -75,7 +75,7 @@ public class RoadbedManager {
                             .open();
                     try (DataInputStream stream = new DataInputStream(new BufferedInputStream(
                             new GZIPInputStream(resourceStream)))) {
-                        CompoundTag rootTag = NbtIo.read(stream, NbtAccounter.create(0x20000000L));
+                        CompoundTag rootTag = NbtIo.read(stream, new NbtAccounter(0x20000000L));
                         nbtData.put(location, rootTag);
                     } catch (Exception e) {
                         Tongdarailway.LOGGER.error(e.getMessage());

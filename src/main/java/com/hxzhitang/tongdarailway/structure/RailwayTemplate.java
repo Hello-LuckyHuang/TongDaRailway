@@ -29,7 +29,7 @@ public class RailwayTemplate {
     public RailwayTemplate(Path path) {
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(
                 new GZIPInputStream(Files.newInputStream(path, StandardOpenOption.READ))))) {
-            CompoundTag rootTag = NbtIo.read(stream, NbtAccounter.create(0x20000000L));
+            CompoundTag rootTag = NbtIo.read(stream, new NbtAccounter(0x20000000L));
             voxelGrid = parseStructureNBT(rootTag);
         } catch (Exception e) {
             Tongdarailway.LOGGER.error(e.getMessage());
@@ -303,7 +303,7 @@ class VoxelGrid {
         ListTag paletteTag = new ListTag();
 
         if (!palette.isEmpty()) {
-            palette.removeFirst();
+            palette.remove(0);
             for (BlockState block : palette) {
                 CompoundTag tag = new CompoundTag();
                 tag.putString("Name", BuiltInRegistries.BLOCK.getKey(block.getBlock()).toString());

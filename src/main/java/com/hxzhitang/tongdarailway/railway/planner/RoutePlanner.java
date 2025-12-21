@@ -124,8 +124,8 @@ public class RoutePlanner {
             adPath.add(new double[]{p[0], p[1], h});
         }
 
-        adPath.getFirst()[2] = con.connectStart()[2];
-        adPath.getLast()[2] = con.connectEnd()[2];
+        adPath.get(0)[2] = con.connectStart()[2];
+        adPath.get(adPath.size()-1)[2] = con.connectEnd()[2];
 
         // 高度调整
         adPath = adjustmentHeight(adPath);
@@ -142,7 +142,7 @@ public class RoutePlanner {
         if (adPath.size() > framed2*2 && framed2*2 >= 3) {
             // 平滑中间
             List<double[]> adPath1 = new ArrayList<>();
-            adPath1.add(adPath.getFirst());
+            adPath1.add(adPath.get(0));
             for (int i = 1; i < adPath.size()-1; i++) {
                 double mean = 0;
                 int sum = 0;
@@ -151,17 +151,17 @@ public class RoutePlanner {
                         mean += adPath.get(j)[2];
                         sum++;
                     } else if (j < 0) {
-                        mean += adPath.getFirst()[2];
+                        mean += adPath.get(0)[2];
                         sum++;
                     } else {
-                        mean += adPath.getLast()[2];
+                        mean += adPath.get(adPath.size()-1)[2];
                         sum++;
                     }
                 }
                 mean /= sum;
                 adPath1.add(new double[] {adPath.get(i)[0], adPath.get(i)[1], mean});
             }
-            adPath1.add(adPath.getLast());
+            adPath1.add(adPath.get(adPath.size()-1));
             adPath = adPath1;
 
             // 平滑起末
@@ -206,8 +206,8 @@ public class RoutePlanner {
         }
 
         // 连接线路和车站
-        Vec3 first = path0.getFirst();
-        Vec3 last = path0.getLast();
+        Vec3 first = path0.get(0);
+        Vec3 last = path0.get(path0.size()-1);
         Vec3 firstDir = first.subtract(path0.get(1)).normalize();
         Vec3 lastDir = last.subtract(path0.get(path0.size()-2)).normalize();
 
@@ -278,8 +278,8 @@ public class RoutePlanner {
         //连接首末点计算高度基线，求出相对高度。
         if (path.size() < 2)
             return new LinkedList<>();
-        double hStart = path.getFirst()[2];
-        double hEnd = path.getLast()[2];
+        double hStart = path.get(0)[2];
+        double hEnd = path.get(path.size()-1)[2];
         double pNum = path.size() - 1;
 
         //计算相对高度

@@ -2,12 +2,10 @@ package com.hxzhitang.tongdarailway.util;
 
 import com.hxzhitang.tongdarailway.railway.RailwayMap;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
@@ -34,7 +32,7 @@ public class ModSaveData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag pCompoundTag, HolderLookup.Provider provider) {
+    public CompoundTag save(CompoundTag pCompoundTag) {
         ListTag listTag = new ListTag();
         regionRailways.forEach((pos, railwayMap) -> {
             CompoundTag compoundTag = new CompoundTag();
@@ -46,7 +44,7 @@ public class ModSaveData extends SavedData {
         return pCompoundTag;
     }
 
-    public static ModSaveData load(CompoundTag nbt, HolderLookup.Provider provider) {
+    public static ModSaveData load(CompoundTag nbt) {
         ModSaveData data = ModSaveData.create();
         ListTag listNBT = (ListTag) nbt.get("RailwayData");
         if (listNBT != null) {
@@ -71,6 +69,10 @@ public class ModSaveData extends SavedData {
         }
         ServerLevel world = worldIn.getServer().getLevel(ServerLevel.OVERWORLD);
         DimensionDataStorage dataStorage = world.getDataStorage();
-        return dataStorage.computeIfAbsent(new Factory<ModSaveData>(ModSaveData::create, ModSaveData::load, DataFixTypes.LEVEL), ModSaveData.NAME);
+        return dataStorage.computeIfAbsent(
+                ModSaveData::load,   // 加载函数 (CompoundTag -> T)
+                ModSaveData::new,    // 创建函数 (() -> T)
+                ModSaveData.NAME     // 存储名称
+        );
     }
 }

@@ -121,8 +121,8 @@ public class StationPlanner {
             return z + off;
         }));
 
-        result.add(copy.removeFirst()); //z最小 北
-        result.add(copy.removeLast());  //z最大 南
+        result.add(copy.remove(0)); //z最小 北
+        result.add(copy.remove(copy.size() - 1));  //z最大 南
 
         // 对出口的按x坐标进行排序 加偏防止x存在相同
         copy.sort(Comparator.comparingDouble(e -> {
@@ -132,8 +132,8 @@ public class StationPlanner {
             return x + off;
         }));
 
-        result.add(copy.removeFirst());  //x最小 西
-        result.add(copy.removeLast());  //x最大 东
+        result.add(copy.remove(0));  //x最小 西
+        result.add(copy.remove(copy.size() - 1));  //x最大 东
 
         // 剩余的Exit放到result最后
         Set<StationStructure.Exit> addedExits = new HashSet<>(result);

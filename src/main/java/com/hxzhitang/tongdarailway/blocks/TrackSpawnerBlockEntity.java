@@ -8,9 +8,8 @@ import com.simibubi.create.content.trains.track.BezierConnection;
 import com.simibubi.create.content.trains.track.TrackBlock;
 import com.simibubi.create.content.trains.track.TrackBlockEntity;
 import com.simibubi.create.content.trains.track.TrackMaterial;
-import net.createmod.catnip.data.Couple;
+import com.simibubi.create.foundation.utility.Couple; // 1.20.1 中 Couple 的位置
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -45,15 +44,13 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
             if (level instanceof ServerLevel world) {
                 for (TrackPutInfo track : entity.trackPutInfos) {
                     if (track.bezier() != null) {
-//                        //高差过大拒绝生成
-//                        if (Math.abs(track.bezier().endOffset().y) > 15)
-//                            continue;
                         placeCurveTrack(world, track);
-                        Objects.requireNonNull(level.getServer()).execute(() -> {
+                        // 1.20.1 中服务器任务调度建议直接使用 world.getServer()
+                        Objects.requireNonNull(world.getServer()).execute(() -> {
                             placeCurveTrackEntity(world, track);
                         });
                     } else {
-                        if (!world.getBlockState(track.pos()).is(AllBlocks.TRACK)) {
+                        if (!world.getBlockState(track.pos()).is(AllBlocks.TRACK.get())) { // 1.20.1 中通常用 .get()
                             world.setBlock(track.pos(), AllBlocks.TRACK.getDefaultState().setValue(TrackBlock.SHAPE, track.shape()), 3);
                         }
                     }
@@ -61,6 +58,7 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
             }
 
             level.destroyBlock(pos, false);
+            // 注意 1.20.1 中 RoseQuartzLampBlock.POWERING 属性的引用
             level.setBlock(pos, AllBlocks.ROSE_QUARTZ_LAMP.getDefaultState()
                     .setValue(RoseQuartzLampBlock.POWERING, true), 3);
             entity.spawnedTrack = true;
@@ -79,19 +77,24 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
         return SPAWN_RANGE;
     }
 
+    // --- 重点修改：NBT 读写方法名和参数在 1.20.1 不同 ---
+
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider p_331864_) {
+    protected void saveAdditional(CompoundTag nbt) { // 去掉 Provider 参数
         ListTag tracksTag = new ListTag();
         for (TrackPutInfo track : trackPutInfos) {
             tracksTag.add(track.toNBT());
         }
         nbt.put("tracks", tracksTag);
-        super.saveAdditional(nbt, p_331864_);
+        nbt.putBoolean("Spawned", spawnedTrack);
+        super.saveAdditional(nbt);
     }
 
     @Override
-    public void loadAdditional(CompoundTag nbt, HolderLookup.Provider p_335164_) {
-        super.loadAdditional(nbt, p_335164_);
+    public void load(CompoundTag nbt) { // 方法名从 loadAdditional 改回 load，去掉 Provider 参数
+        super.load(nbt);
+        this.spawnedTrack = nbt.getBoolean("Spawned");
+        this.trackPutInfos.clear();
         ListTag tracksTag = nbt.getList("tracks", Tag.TAG_COMPOUND);
         for (int i = 0; i < tracksTag.size(); i++) {
             TrackPutInfo track = TrackPutInfo.fromNBT(tracksTag.getCompound(i));
@@ -99,15 +102,15 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
         }
     }
 
+    // --- 贝塞尔曲线生成部分 ---
+
     private static void placeCurveTrack(ServerLevel world, TrackPutInfo track) {
-        // 1. 放置第一段直轨
         BlockPos startPos = track.pos();
         BlockState trackState = AllBlocks.TRACK.getDefaultState()
                 .setValue(TrackBlock.SHAPE, track.shape())
                 .setValue(TrackBlock.HAS_BE, true);
         world.setBlock(startPos, trackState, 3);
 
-        // 2. 放置第二段直轨
         Vec3 offset = track.bezier().endOffset();
         BlockPos endPos = startPos.offset((int) offset.x, (int) offset.y, (int) offset.z);
         BlockState trackState2 = AllBlocks.TRACK.getDefaultState()
@@ -121,61 +124,42 @@ public class TrackSpawnerBlockEntity extends BlockEntity {
         Vec3 offset = track.bezier().endOffset();
         BlockPos endPos = startPos.offset((int) offset.x, (int) offset.y, (int) offset.z);
 
-        // 3. 创建贝塞尔连接
-        TrackBlockEntity tbe1 = (TrackBlockEntity) world.getBlockEntity(startPos);
-        TrackBlockEntity tbe2 = (TrackBlockEntity) world.getBlockEntity(endPos);
+        BlockEntity be1 = world.getBlockEntity(startPos);
+        BlockEntity be2 = world.getBlockEntity(endPos);
 
-        if (tbe1 != null && tbe2 != null) {
-            // 定义起点和终点
+        if (be1 instanceof TrackBlockEntity tbe1 && be2 instanceof TrackBlockEntity tbe2) {
             Vec3 start1 = track.bezier().start().add(getStartVec(track.bezier().startAxis()));
             Vec3 start2 = track.bezier().start().add(track.bezier().endOffset()).add(getStartVec(track.bezier().endAxis()));
 
-            // 定义轴向(切线方向)
-            Vec3 axis1 = track.bezier().startAxis();  // X轴正方向
-            Vec3 axis2 = track.bezier().endAxis();  // Z轴正方向
+            Vec3 axis1 = track.bezier().startAxis();
+            Vec3 axis2 = track.bezier().endAxis();
 
-            // 定义法线(向上)
             Vec3 normal1 = new Vec3(0, 1, 0);
             Vec3 normal2 = new Vec3(0, 1, 0);
 
-            // 创建贝塞尔连接
             BezierConnection connection = new BezierConnection(
                     Couple.create(startPos, endPos),
                     Couple.create(start1, start2),
                     Couple.create(axis1, axis2),
                     Couple.create(normal1, normal2),
-                    true,  // teToTe
-                    false, // hasGirder
+                    true,
+                    false,
                     TrackMaterial.ANDESITE
             );
-            tbe1.setLevel(world.getLevel());
-            tbe2.setLevel(world.getLevel());
 
-            // 添加连接到两端的方块实体
+            // 在 1.20.1 中手动同步连接
             tbe1.addConnection(connection);
             tbe2.addConnection(connection.secondary());
+
+            // 提醒：可能需要调用通知方块更新的方法
+            tbe1.setChanged();
+            tbe2.setChanged();
         }
     }
 
     private static Vec3 getStartVec(Vec3 dir) {
-        double offX;
-        if (Math.abs(dir.x) < 1e-6) {
-            offX = 0.5;
-        } else if (dir.x < 0) {
-            offX = 0;
-        } else {
-            offX = 1;
-        }
-
-        double offZ;
-        if (Math.abs(dir.z) < 1e-6) {
-            offZ = 0.5;
-        } else if (dir.z < 0) {
-            offZ = 0;
-        } else {
-            offZ = 1;
-        }
-
+        double offX = (Math.abs(dir.x) < 1e-6) ? 0.5 : (dir.x < 0 ? 0 : 1);
+        double offZ = (Math.abs(dir.z) < 1e-6) ? 0.5 : (dir.z < 0 ? 0 : 1);
         return new Vec3(offX, 0, offZ);
     }
 }
