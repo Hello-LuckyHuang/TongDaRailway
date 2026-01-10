@@ -7,199 +7,137 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-// 曲线类 根据曲线上的标架生成弯曲结构
 public class CurveRoute {
-    // 三维点类
-    public static class Point3D {
-        public double x, y, z;
 
-        public Point3D(double x, double y, double z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
+    // --- 内部接口与类定义 ---
 
-        public Point3D(Vec3 p) {
-            this.x = p.x;
-            this.y = p.y;
-            this.z = p.z;
-        }
-
-        public Point3D subtract(Point3D other) {
-            return new Point3D(x - other.x, y - other.y, z - other.z);
-        }
-
-        public Point3D add(Point3D other) {
-            return new Point3D(x + other.x, y + other.y, z + other.z);
-        }
-
-        public Point3D multiply(double scalar) {
-            return new Point3D(x * scalar, y * scalar, z * scalar);
-        }
-
-        public double dot(Point3D other) {
-            return x * other.x + y * other.y + z * other.z;
-        }
-
-        public Point3D div(double n) {
-            return new Point3D(x / n, y / n, z / n);
-        }
-
-        public Point3D cross(Point3D other) {
-            return new Point3D(
-                    y * other.z - z * other.y,
-                    z * other.x - x * other.z,
-                    x * other.y - y * other.x
-            );
-        }
-
-        public double length() {
-            return Math.sqrt(x * x + y * y + z * z);
-        }
-
-        public Point3D normalize() {
-            double len = length();
-            if (len == 0) return new Point3D(0, 0, 0);
-            return new Point3D(x / len, y / len, z / len);
-        }
-
-        public double distanceTo(Point3D other) {
-            double dx = x - other.x;
-            double dy = y - other.y;
-            double dz = z - other.z;
-            return Math.sqrt(dx * dx + dy * dy + dz * dz);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("(%.3f, %.3f, %.3f)", x, y, z);
-        }
-
-        public ListTag toNBT() {
-            ListTag list = new ListTag();
-            list.add(DoubleTag.valueOf(x));
-            list.add(DoubleTag.valueOf(y));
-            list.add(DoubleTag.valueOf(z));
-            return list;
-        }
-
-        public static Point3D fromNBT(ListTag list) {
-            return new Point3D(
-                    list.getDouble(0),
-                    list.getDouble(1),
-                    list.getDouble(2)
-            );
-        }
-    }
-
-    // 标架（坐标系）类
-    public static class Frame {
-        public Point3D position;    // 原点位置
-        public Point3D tangent;     // 切线方向 (X轴)
-        public Point3D normal;      // 法线方向 (Y轴)
-        public Point3D binormal;    // 副法线方向 (Z轴)
-
-        public Frame(Point3D position, Point3D tangent, Point3D normal, Point3D binormal) {
-            this.position = position;
-            this.tangent = tangent.normalize();
-            this.normal = normal.normalize();
-            this.binormal = binormal.normalize();
-        }
-
-        // 旋转标架到新的切线方向
-        public Frame rotateToNewTangent(Point3D newTangent, Point3D newPosition) {
-            Point3D oldT = this.tangent;
-            Point3D newT = newTangent.normalize();
-
-            // 计算旋转轴和角度
-            Point3D rotationAxis = oldT.cross(newT);
-            double axisLength = rotationAxis.length();
-
-            if (axisLength < 1e-10) {
-                // 切线方向变化很小，直接使用原标架
-                return new Frame(newPosition, newT, this.normal, this.binormal);
-            }
-
-            rotationAxis = rotationAxis.normalize();
-            double cosAngle = oldT.dot(newT);
-            double angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
-
-            // 使用Rodrigues旋转公式旋转法线和副法线
-            Point3D rotatedNormal = rotateVector(this.normal, rotationAxis, angle);
-            Point3D rotatedBinormal = rotateVector(this.binormal, rotationAxis, angle);
-
-            return new Frame(newPosition, newT, rotatedNormal, rotatedBinormal);
-        }
-
-        private Point3D rotateVector(Point3D vector, Point3D axis, double angle) {
-            double cos = Math.cos(angle);
-            double sin = Math.sin(angle);
-
-            // Rodrigues旋转公式: v_rot = v * cosθ + (axis × v) * sinθ + axis * (axis · v) * (1 - cosθ)
-            Point3D term1 = vector.multiply(cos);
-            Point3D term2 = axis.cross(vector).multiply(sin);
-            Point3D term3 = axis.multiply(axis.dot(vector) * (1 - cos));
-
-            return term1.add(term2).add(term3).normalize();
-        }
-
-        /**
-         * 我们认为路面不可能出现左右倾斜，但是拿到的标架却可能有左右倾斜
-         * 所以这里我们计算一个和切线垂直，以及切线和此向量张成的平面和xz平面垂直的
-         * y坐标为正的法向量
-         * @return 垂直法向量
-         */
-        public Point3D getVerticalXZNormal() {
-            return new Point3D(-tangent.x*tangent.y, 1-Math.pow(tangent.y,2), -tangent.z*tangent.y).normalize();
-        }
-
-        @Override
-        public String toString() {
-            return String.format("pos: %s, tangent: %s, normal: %s, binormal: %s",
-                    position, tangent, normal, binormal);
-        }
-    }
-
-    // 曲线段接口
     public interface CurveSegment {
-        Point3D evaluate(double t);
-        Point3D derivative(double t);
         double getLength();
-        List<Point3D> rasterize(int n); // 缩小n倍下栅格化
+        Vec3 getPointAt(double t); // t 范围 [0, 1]
+        Vec3 getTangentAt(double t);
+        List<Vec3> rasterize(int n); // 在xz平面缩小n倍并光栅化
     }
 
-    // 直线段实现
-    public static class LineSegment implements CurveSegment {
-        private Point3D start, end;
+    /**
+     * 采样点信息类，用于KD-Tree存储和插值
+     */
+    private static class SamplePoint {
+        Vec3 position;
+        Vec3 tangent;
+        double segmentU;      // 在所属片段内的参数u
+        double globalDist;    // 该点距离整条曲线起点的距离
+        int segmentIndex;
 
-        public LineSegment(Point3D start, Point3D end) {
-            this.start = start;
-            this.end = end;
+        SamplePoint(Vec3 pos, Vec3 tan, double u, double dist, int idx) {
+            this.position = pos;
+            this.tangent = tan;
+            this.segmentU = u;
+            this.globalDist = dist;
+            this.segmentIndex = idx;
         }
+    }
+
+    // --- 成员变量 ---
+
+    private final List<CurveSegment> segments = new ArrayList<>();
+    private final List<SamplePoint> allSamplePoints = new ArrayList<>();
+    private KDNode kdTreeRoot;
+    private double totalLength = 0;
+    private final int SAMPLES_PER_SEGMENT = 50; // 每一段的采样密度
+
+    // --- 核心方法 ---
+
+    public void addSegment(CurveSegment segment) {
+        segments.add(segment);
+        buildSamplePoints();
+    }
+
+    public double getTotalLength() {
+        return totalLength;
+    }
+
+    /**
+     * 更新样本点列表，构建KD-Tree，计算总长度
+     */
+    public void buildSamplePoints() {
+        allSamplePoints.clear();
+        totalLength = 0;
+
+        for (int i = 0; i < segments.size(); i++) {
+            CurveSegment seg = segments.get(i);
+            double segLen = seg.getLength();
+
+            for (int j = 0; j <= SAMPLES_PER_SEGMENT; j++) {
+                double u = (double) j / SAMPLES_PER_SEGMENT;
+                Vec3 pos = seg.getPointAt(u);
+                Vec3 tan = seg.getTangentAt(u);
+                // 全局距离 = 之前段的总长 + 当前段内的距离近似
+                double currentGlobalDist = totalLength + (u * segLen);
+
+                allSamplePoints.add(new SamplePoint(pos, tan, u, currentGlobalDist, i));
+            }
+            totalLength += segLen;
+        }
+
+        // 构建用于快速查找的KD-Tree
+        if (!allSamplePoints.isEmpty()) {
+            kdTreeRoot = buildKDTree(new ArrayList<>(allSamplePoints), 0);
+        }
+    }
+
+    /**
+     * 寻找最近点：通过KD-Tree找到最近的两个采样点，并进行线性插值
+     */
+    public Frame getFrame(Vec3 point) {
+        if (kdTreeRoot == null || totalLength == 0) return null;
+
+        // 1. 查找最近的两个采样点
+        PriorityQueue<Neighbor> neighbors = new PriorityQueue<>(Comparator.comparingDouble(n -> -n.distance));
+        searchNearest(kdTreeRoot, point, 2, 0, neighbors);
+
+        if (neighbors.size() < 2) return null;
+
+        Neighbor n2 = neighbors.poll();
+        Neighbor n1 = neighbors.poll(); // n1 是最近的，n2 是次近的
+
+        SamplePoint p1 = n1.node.point;
+        SamplePoint p2 = n2.node.point;
+
+        // 2. 在两点间进行投影插值
+        Vec3 v12 = p2.position.subtract(p1.position);
+        double lineLenSq = v12.lengthSqr();
+        double fraction = 0;
+
+        if (lineLenSq > 1e-9) {
+            Vec3 v1P = point.subtract(p1.position);
+            fraction = Math.max(0, Math.min(1, v1P.dot(v12) / lineLenSq));
+        }
+
+        // 3. 计算结果
+        Vec3 closestPos = p1.position.add(v12.scale(fraction));
+        Vec3 closestTangent = p1.tangent.add(p2.tangent.subtract(p1.tangent).scale(fraction)).normalize();
+        double closestDist = p1.globalDist + (p2.globalDist - p1.globalDist) * fraction;
+        double tGlobal = closestDist / totalLength;
+
+//        System.out.println("--- Nearest Point Results ---");
+//        System.out.printf("Query Point: (%.2f, %.2f, %.2f)\n", point.x, point.y, point.z);
+//        System.out.printf("Closest Pos: (%.2f, %.2f, %.2f)\n", closestPos.x, closestPos.y, closestPos.z);
+//        System.out.printf("Tangent    : (%.2f, %.2f, %.2f)\n", closestTangent.x, closestTangent.y, closestTangent.z);
+//        System.out.printf("Global T   : %.4f (Distance: %.2f / %.2f)\n", tGlobal, closestDist, totalLength);
+
+        return new Frame(closestPos, closestTangent, tGlobal, p1.segmentU + (p2.segmentU - p1.segmentU) * fraction);
+    }
+
+    // --- 内部实现类：LineSegment ---
+
+    public static class LineSegment implements CurveSegment {
+        private Vec3 start, end;
 
         public LineSegment(Vec3 start, Vec3 end) {
-            this.start = new Point3D(start);
-            this.end = new Point3D(end);
-        }
-
-        @Override
-        public Point3D evaluate(double t) {
-            t = Math.max(0, Math.min(1, t));
-            return new Point3D(
-                    start.x + t * (end.x - start.x),
-                    start.y + t * (end.y - start.y),
-                    start.z + t * (end.z - start.z)
-            );
-        }
-
-        @Override
-        public Point3D derivative(double t) {
-            return end.subtract(start).normalize();
+            this.start = start;
+            this.end = end;
         }
 
         @Override
@@ -208,57 +146,38 @@ public class CurveRoute {
         }
 
         @Override
-        // 直线段的栅格化（Bresenham算法，只考虑x,z坐标）
-        public List<Point3D> rasterize(int n) {
-            List<Point3D> rasterPoints = new ArrayList<>();
+        public Vec3 getPointAt(double t) {
+            return start.add(end.subtract(start).scale(t));
+        }
 
-            int x0 = (int) Math.round(start.x/n);
-            int z0 = (int) Math.round(start.z/n);
-            int x1 = (int) Math.round(end.x/n);
-            int z1 = (int) Math.round(end.z/n);
+        @Override
+        public Vec3 getTangentAt(double t) {
+            return end.subtract(start).normalize();
+        }
 
-            // 使用Bresenham直线算法
-            int dx = Math.abs(x1 - x0);
-            int dz = Math.abs(z1 - z0);
-            int sx = x0 < x1 ? 1 : -1;
-            int sz = z0 < z1 ? 1 : -1;
-            int err = dx - dz;
-
-            int x = x0;
-            int z = z0;
-
-            while (true) {
-                rasterPoints.add(new Point3D(x, 0, z));
-
-                if (x == x1 && z == z1) break;
-
-                int e2 = 2 * err;
-                if (e2 > -dz) {
-                    err -= dz;
-                    x += sx;
-                }
-                if (e2 < dx) {
-                    err += dx;
-                    z += sz;
-                }
+        @Override
+        public List<Vec3> rasterize(int n) {
+            List<Vec3> points = new ArrayList<>();
+            double len = getLength();
+            int steps = (int) Math.max(1, len / n);
+            for (int i = 0; i <= steps; i++) {
+                Vec3 p = getPointAt((double) i / steps);
+                points.add(new Vec3(p.x / n, 0, p.z / n));
             }
-
-            return rasterPoints;
+            return points;
         }
     }
 
-    // 三阶贝塞尔曲线实现
-    public static class CubicBezier implements CurveSegment {
-        private Point3D p0, p1, p2, p3;
+    // --- 内部实现类：BezierSegment (三阶贝塞尔) ---
 
-        public CubicBezier(Point3D p0, Point3D p1, Point3D p2, Point3D p3) {
-            this.p0 = p0;
-            this.p1 = p1;
-            this.p2 = p2;
-            this.p3 = p3;
+    public static class BezierSegment implements CurveSegment {
+        private Vec3 p0, p1, p2, p3;
+
+        public BezierSegment(Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3) {
+            this.p0 = p0; this.p1 = p1; this.p2 = p2; this.p3 = p3;
         }
 
-        public static CubicBezier getCubicBezier(
+        public static BezierSegment getCubicBezier(
                 Vec3 startPos,           // 起点坐标
                 Vec3 startAxis,          // 起点切线方向
                 Vec3 endOffset,          // 终点相对于起点的偏移
@@ -280,7 +199,7 @@ public class CurveRoute {
             Vec3 p2 = endPos.add(axis2.scale(handleLength));      // 第二个控制点
             Vec3 p3 = endPos; // 终点
 
-            return new CubicBezier(new Point3D(p0), new Point3D(p1), new Point3D(p2), new Point3D(p3));
+            return new BezierSegment(p0, p1, p2, p3);
         }
 
         private static double determineHandleLength(Vec3 end1, Vec3 end2, Vec3 axis1, Vec3 axis2) {
@@ -332,526 +251,231 @@ public class CurveRoute {
         }
 
         @Override
-        public Point3D evaluate(double t) {
-            t = Math.max(0, Math.min(1, t));
+        public Vec3 getPointAt(double t) {
             double u = 1 - t;
-            double u2 = u * u;
-            double u3 = u2 * u;
-            double t2 = t * t;
-            double t3 = t2 * t;
-
-            Point3D result = p0.multiply(u3)
-                    .add(p1.multiply(3 * u2 * t))
-                    .add(p2.multiply(3 * u * t2))
-                    .add(p3.multiply(t3));
-
-            return result;
+            return p0.scale(u * u * u)
+                    .add(p1.scale(3 * u * u * t))
+                    .add(p2.scale(3 * u * t * t))
+                    .add(p3.scale(t * t * t));
         }
 
         @Override
-        public Point3D derivative(double t) {
-            t = Math.max(0, Math.min(1, t));
+        public Vec3 getTangentAt(double t) {
             double u = 1 - t;
-
-            Point3D term1 = p1.subtract(p0).multiply(3 * u * u);
-            Point3D term2 = p2.subtract(p1).multiply(6 * u * t);
-            Point3D term3 = p3.subtract(p2).multiply(3 * t * t);
-
-            return term1.add(term2).add(term3).normalize();
+            // 一阶导数公式: 3(1-t)^2(p1-p0) + 6(1-t)t(p2-p1) + 3t^2(p3-p2)
+            Vec3 tan = p1.subtract(p0).scale(3 * u * u)
+                    .add(p2.subtract(p1).scale(6 * u * t))
+                    .add(p3.subtract(p2).scale(3 * t * t));
+            return tan.normalize();
         }
 
         @Override
         public double getLength() {
-            int steps = 100;
+            // 数值积分近似长度
             double length = 0;
-            Point3D prev = evaluate(0);
-
+            int steps = 20;
+            Vec3 prev = getPointAt(0);
             for (int i = 1; i <= steps; i++) {
-                Point3D current = evaluate(i / (double) steps);
-                length += prev.distanceTo(current);
-                prev = current;
+                Vec3 curr = getPointAt((double) i / steps);
+                length += prev.distanceTo(curr);
+                prev = curr;
             }
-
             return length;
         }
 
-        // 栅格化三阶贝塞尔曲线，返回经过的所有栅格点
         @Override
-        public List<Point3D> rasterize(int n) {
-            Set<Point3D> rasterPoints = new HashSet<>();
-
-            // 使用递归细分算法进行栅格化
-            recursiveRasterize(p0.div(n), p1.div(n), p2.div(n), p3.div(n), rasterPoints, 0);
-
-            return new ArrayList<>(rasterPoints);
-        }
-
-        // 递归细分栅格化方法
-        private void recursiveRasterize(Point3D p0, Point3D p1, Point3D p2, Point3D p3,
-                                               Set<Point3D> rasterPoints, int depth) {
-            // 最大递归深度，控制精度
-            final int MAX_DEPTH = 8;
-
-            // 计算四个控制点的整数栅格坐标（只考虑x,z）
-            int x0 = (int) Math.round(p0.x);
-            int z0 = (int) Math.round(p0.z);
-            int x1 = (int) Math.round(p1.x);
-            int z1 = (int) Math.round(p1.z);
-            int x2 = (int) Math.round(p2.x);
-            int z2 = (int) Math.round(p2.z);
-            int x3 = (int) Math.round(p3.x);
-            int z3 = (int) Math.round(p3.z);
-
-            // 如果所有控制点都在同一个栅格内，或者达到最大深度，则添加端点并返回
-            if ((x0 == x1 && x1 == x2 && x2 == x3 && z0 == z1 && z1 == z2 && z2 == z3) || depth >= MAX_DEPTH) {
-                rasterPoints.add(new Point3D(x0, 0, z0));
-                rasterPoints.add(new Point3D(x3, 0, z3));
-                return;
+        public List<Vec3> rasterize(int n) {
+            List<Vec3> points = new ArrayList<>();
+            int steps = 20;
+            for (int i = 0; i <= steps; i++) {
+                Vec3 p = getPointAt((double) i / steps);
+                points.add(new Vec3(p.x / n, 0, p.z / n));
             }
-
-            // 计算中点，将贝塞尔曲线分成两段
-            Point3D[] subdivided = subdivideBezier(p0, p1, p2, p3, 0.5);
-            Point3D leftP0 = subdivided[0];
-            Point3D leftP1 = subdivided[1];
-            Point3D leftP2 = subdivided[2];
-            Point3D leftP3 = subdivided[3];
-            Point3D rightP0 = subdivided[3];  // 注意：左段的终点就是右段的起点
-            Point3D rightP1 = subdivided[4];
-            Point3D rightP2 = subdivided[5];
-            Point3D rightP3 = subdivided[6];
-
-            // 递归处理左右两段
-            recursiveRasterize(leftP0, leftP1, leftP2, leftP3, rasterPoints, depth + 1);
-            recursiveRasterize(rightP0, rightP1, rightP2, rightP3, rasterPoints, depth + 1);
-        }
-
-        // 贝塞尔曲线细分算法：将曲线在参数t处分成两段
-        private Point3D[] subdivideBezier(Point3D p0, Point3D p1, Point3D p2, Point3D p3, double t) {
-            // 计算第一组中间点
-            Point3D p01 = interpolate(p0, p1, t);
-            Point3D p12 = interpolate(p1, p2, t);
-            Point3D p23 = interpolate(p2, p3, t);
-
-            // 计算第二组中间点
-            Point3D p012 = interpolate(p01, p12, t);
-            Point3D p123 = interpolate(p12, p23, t);
-
-            // 计算分割点
-            Point3D p0123 = interpolate(p012, p123, t);
-
-            // 返回两段曲线的控制点
-            // 左段: p0, p01, p012, p0123
-            // 右段: p0123, p123, p23, p3
-            return new Point3D[] {
-                    p0, p01, p012, p0123,
-                    p123, p23, p3
-            };
-        }
-
-        // 线性插值
-        private Point3D interpolate(Point3D a, Point3D b, double t) {
-            return new Point3D(
-                    a.x + t * (b.x - a.x),
-                    a.y + t * (b.y - a.y),  // 虽然y坐标不考虑，但为了完整性保留
-                    a.z + t * (b.z - a.z)
-            );
+            return points;
         }
     }
 
-    // 最近点查找结果
-    public static class NearestPointResult {
-        public Point3D nearestPoint;
-        public double parameter;
-        public double distance;
-        public Frame frame;
-        public int segmentIndex;
+    // --- KD-Tree 内部结构 ---
 
-        public NearestPointResult(Point3D nearestPoint, double parameter, double distance,
-                                  Frame frame, int segmentIndex) {
-            this.nearestPoint = nearestPoint;
-            this.parameter = parameter;
-            this.distance = distance;
-            this.frame = frame;
-            this.segmentIndex = segmentIndex;
+    private static class KDNode {
+        SamplePoint point;
+        KDNode left, right;
+        int axis; // 0:x, 1:y, 2:z
+
+        KDNode(SamplePoint p, int axis) {
+            this.point = p;
+            this.axis = axis;
         }
     }
 
-    // 平行传输标架计算器
-    public static class ParallelTransportFrameCalculator {
-        // 为整个曲线计算平行传输标架
-        public static List<Frame> computeParallelTransportFrames(CompositeCurve curve, int sampleCount) {
-            List<Frame> frames = new ArrayList<>();
+    private KDNode buildKDTree(List<SamplePoint> points, int depth) {
+        if (points.isEmpty()) return null;
+        int axis = depth % 3;
+        points.sort((a, b) -> Double.compare(getCoord(a.position, axis), getCoord(b.position, axis)));
+        int mid = points.size() / 2;
+        KDNode node = new KDNode(points.get(mid), axis);
+        node.left = buildKDTree(points.subList(0, mid), depth + 1);
+        node.right = buildKDTree(points.subList(mid + 1, points.size()), depth + 1);
+        return node;
+    }
 
-            if (curve.getSegments().isEmpty()) {
-                return frames;
-            }
+    private void searchNearest(KDNode node, Vec3 target, int k, int depth, PriorityQueue<Neighbor> pq) {
+        if (node == null) return;
 
-            // 采样曲线点
-            List<Point3D> samples = new ArrayList<>();
-            List<Point3D> tangents = new ArrayList<>();
+        double dist = target.distanceTo(node.point.position);
+        pq.add(new Neighbor(node, dist));
+        if (pq.size() > k) pq.poll();
 
-            for (int i = 0; i < sampleCount; i++) {
-                double t = i / (double) (sampleCount - 1);
-                CurveSegment segment = curve.getSegmentAtParameter(t);
-                double segmentT = curve.getSegmentParameter(t);
+        int axis = node.axis;
+        double diff = getCoord(target, axis) - getCoord(node.point.position, axis);
 
-                Point3D point = segment.evaluate(segmentT);
-                Point3D tangent = segment.derivative(segmentT);
+        KDNode near = diff < 0 ? node.left : node.right;
+        KDNode far = diff < 0 ? node.right : node.left;
 
-                samples.add(point);
-                tangents.add(tangent);
-            }
-
-            // 计算初始标架
-            Frame initialFrame = computeInitialFrame(samples.get(0), tangents.get(0));
-            frames.add(initialFrame);
-
-            // 平行传输后续标架
-            for (int i = 1; i < samples.size(); i++) {
-                Frame prevFrame = frames.get(i - 1);
-                Point3D currentPoint = samples.get(i);
-                Point3D currentTangent = tangents.get(i);
-
-                Frame newFrame = prevFrame.rotateToNewTangent(currentTangent, currentPoint);
-                frames.add(newFrame);
-            }
-
-            return frames;
-        }
-
-        // 在任意参数位置通过插值获取标架
-        public static Frame getFrameAtParameter(List<Frame> frames, double t, int sampleCount) {
-            if (frames.isEmpty()) {
-                return null;
-            }
-
-            double index = t * (sampleCount - 1);
-            int idx1 = (int) Math.floor(index);
-            int idx2 = (int) Math.ceil(index);
-
-            if (idx1 < 0) idx1 = 0;
-            if (idx2 >= frames.size()) idx2 = frames.size() - 1;
-            if (idx1 == idx2) return frames.get(idx1);
-
-            double blend = index - idx1;
-            return interpolateFrames(frames.get(idx1), frames.get(idx2), blend);
-        }
-
-        // 插值两个标架
-        private static Frame interpolateFrames(Frame frame1, Frame frame2, double blend) {
-            Point3D pos = interpolatePoints(frame1.position, frame2.position, blend);
-            Point3D tangent = interpolatePoints(frame1.tangent, frame2.tangent, blend).normalize();
-
-            // 对法线和副法线进行SLERP插值
-            Point3D normal = slerp(frame1.normal, frame2.normal, blend);
-            Point3D binormal = tangent.cross(normal).normalize();
-            normal = binormal.cross(tangent).normalize();
-
-            return new Frame(pos, tangent, normal, binormal);
-        }
-
-        private static Point3D interpolatePoints(Point3D p1, Point3D p2, double blend) {
-            return new Point3D(
-                    p1.x + blend * (p2.x - p1.x),
-                    p1.y + blend * (p2.y - p1.y),
-                    p1.z + blend * (p2.z - p1.z)
-            );
-        }
-
-        private static Point3D slerp(Point3D v1, Point3D v2, double blend) {
-            double dot = Math.max(-1, Math.min(1, v1.dot(v2)));
-            double angle = Math.acos(dot);
-
-            if (angle < 1e-10) {
-                return interpolatePoints(v1, v2, blend).normalize();
-            }
-
-            double sinAngle = Math.sin(angle);
-            double w1 = Math.sin((1 - blend) * angle) / sinAngle;
-            double w2 = Math.sin(blend * angle) / sinAngle;
-
-            return new Point3D(
-                    w1 * v1.x + w2 * v2.x,
-                    w1 * v1.y + w2 * v2.y,
-                    w1 * v1.z + w2 * v2.z
-            ).normalize();
-        }
-
-        private static Frame computeInitialFrame(Point3D point, Point3D tangent) {
-            Point3D t = tangent.normalize();
-            Point3D n, b;
-
-            // 选择与切线不共线的参考向量
-            if (Math.abs(t.x) > 0.1 || Math.abs(t.y) > 0.1) {
-                n = new Point3D(0, 0, 1).cross(t).normalize();
-            } else {
-                n = new Point3D(1, 0, 0).cross(t).normalize();
-            }
-
-            b = t.cross(n).normalize();
-            n = b.cross(t).normalize();
-
-            return new Frame(point, t, n, b);
+        searchNearest(near, target, k, depth + 1, pq);
+        if (pq.size() < k || Math.abs(diff) < pq.peek().distance) {
+            searchNearest(far, target, k, depth + 1, pq);
         }
     }
 
-    // 复合曲线类
-    public static class CompositeCurve {
-        private List<CurveSegment> segments = new ArrayList<>();
-        private List<Double> segmentLengths = new ArrayList<>();
+    private double getCoord(Vec3 v, int axis) {
+        return axis == 0 ? v.x : (axis == 1 ? v.y : v.z);
+    }
 
-        public double getTotalLength() {
-            return totalLength;
-        }
+    private static class Neighbor {
+        KDNode node;
+        double distance;
+        Neighbor(KDNode n, double d) { this.node = n; this.distance = d; }
+    }
 
-        private double totalLength = 0;
-        private List<Frame> parallelFrames;
-        private boolean framesComputed = false;
-        private static final int SAMPLE_COUNT = 100;
+    //==========================
 
-        public void addSegment(CurveSegment segment) {
-            segments.add(segment);
-            double length = segment.getLength();
-            segmentLengths.add(length);
-            totalLength += length;
-            framesComputed = false; // 标记需要重新计算标架
-        }
+    public List<CurveSegment> getSegments(){
+        return segments;
+    }
 
-        public List<CurveSegment> getSegments() {
-            return segments;
-        }
-
-        public CurveSegment getSegmentAtParameter(double t) {
-            t = Math.max(0, Math.min(1, t));
-            double targetLength = t * totalLength;
-            double accumulated = 0;
-
-            for (int i = 0; i < segments.size(); i++) {
-                double segmentLength = segmentLengths.get(i);
-                if (accumulated + segmentLength >= targetLength) {
-                    return segments.get(i);
-                }
-                accumulated += segmentLength;
+    public ListTag toNBT() {
+        ListTag curveTag = new ListTag();
+        for (var segment : segments) {
+            ListTag parameters = new ListTag();
+            if (segment instanceof CurveRoute.LineSegment line) {
+                parameters.add(vec2NBT(line.start));
+                parameters.add(vec2NBT(line.end));
+            } else if (segment instanceof CurveRoute.BezierSegment bezier) {
+                parameters.add(vec2NBT(bezier.p0));
+                parameters.add(vec2NBT(bezier.p1));
+                parameters.add(vec2NBT(bezier.p2));
+                parameters.add(vec2NBT(bezier.p3));
             }
-
-            return segments.get(segments.size() - 1);
+            curveTag.add(parameters);
         }
+        return curveTag;
+    }
 
-        public double getSegmentParameter(double t) {
-            t = Math.max(0, Math.min(1, t));
-            double targetLength = t * totalLength;
-            double accumulated = 0;
-
-            for (int i = 0; i < segments.size(); i++) {
-                double segmentLength = segmentLengths.get(i);
-                if (accumulated + segmentLength >= targetLength) {
-                    double segmentT = (targetLength - accumulated) / segmentLength;
-                    return Math.max(0, Math.min(1, segmentT));
-                }
-                accumulated += segmentLength;
-            }
-
-            return 1.0;
-        }
-
-        private void ensureFramesComputed() {
-            if (!framesComputed || parallelFrames == null) {
-                parallelFrames = ParallelTransportFrameCalculator.computeParallelTransportFrames(this, SAMPLE_COUNT);
-                framesComputed = true;
+    public static CurveRoute fromNBT(ListTag curveTag) {
+        CurveRoute curve = new CurveRoute();
+        for (int i = 0; i < curveTag.size(); i++) {
+            ListTag parameters = curveTag.getList(i);
+            if (parameters.size() == 2) {
+                Vec3 start = nbt2Vec((ListTag) parameters.get(0));
+                Vec3 end = nbt2Vec((ListTag) parameters.get(1));
+                curve.addSegment(new LineSegment(start, end));
+            } else if (parameters.size() == 4) {
+                Vec3 p0 = nbt2Vec((ListTag) parameters.get(0));
+                Vec3 p1 = nbt2Vec((ListTag) parameters.get(1));
+                Vec3 p2 = nbt2Vec((ListTag) parameters.get(2));
+                Vec3 p3 = nbt2Vec((ListTag) parameters.get(3));
+                curve.addSegment(new BezierSegment(p0, p1, p2, p3));
             }
         }
+        return curve;
+    }
 
-        public NearestPointResult findNearestPoint(Point3D point) {
-            if (segments.isEmpty()) {
-                throw new IllegalStateException("曲线没有定义任何段");
-            }
+    public static class Frame {
+        public final Vec3 nearestPoint;
+        public final Vec3 tangent;
 
-            ensureFramesComputed();
+        public final Vec3 tangent0;
+        public final Vec3 normal0;
+        public final Vec3 binormal0;
 
-            NearestPointResult bestResult = null;
+        public final double globalT;
+        public final double localU;
 
-            for (int i = 0; i < segments.size(); i++) {
-                CurveSegment segment = segments.get(i);
-                NearestPointResult segmentResult = findNearestOnSegment(segment, point, i);
-
-                if (bestResult == null || segmentResult.distance < bestResult.distance) {
-                    bestResult = segmentResult;
-                }
-            }
-
-            return bestResult;
+        public Frame(Vec3 pos, Vec3 tangent, double globalT, double localU) {
+            this.nearestPoint = pos;
+            this.tangent = tangent;
+            this.tangent0 = new Vec3(tangent.x, 0, tangent.z).normalize();
+            this.normal0 = new Vec3(0, 1, 0);
+            this.binormal0 = tangent0.cross(normal0);
+            this.globalT = globalT;
+            this.localU = localU;
         }
 
-        private NearestPointResult findNearestOnSegment(CurveSegment segment, Point3D point, int segmentIndex) {
-            int iterations = 20;
-            double low = 0.0;
-            double high = 1.0;
-
-            for (int i = 0; i < iterations; i++) {
-                double t1 = low + (high - low) / 3.0;
-                double t2 = high - (high - low) / 3.0;
-
-                Point3D p1 = segment.evaluate(t1);
-                Point3D p2 = segment.evaluate(t2);
-
-                double d1 = p1.distanceTo(point);
-                double d2 = p2.distanceTo(point);
-
-                if (d1 < d2) {
-                    high = t2;
-                } else {
-                    low = t1;
-                }
-            }
-
-            double bestT = (low + high) / 2.0;
-            Point3D nearestPoint = segment.evaluate(bestT);
-            double distance = nearestPoint.distanceTo(point);
-
-            // 使用平行传输标架
-            Frame frame = ParallelTransportFrameCalculator.getFrameAtParameter(
-                    parallelFrames, getGlobalParameter(segmentIndex, bestT), SAMPLE_COUNT);
-
-            return new NearestPointResult(nearestPoint, bestT, distance, frame, segmentIndex);
-        }
-
-        public double getGlobalParameter(int segmentIndex, double segmentT) {
-            double accumulated = 0;
-            for (int i = 0; i < segmentIndex; i++) {
-                accumulated += segmentLengths.get(i);
-            }
-            accumulated += segmentLengths.get(segmentIndex) * segmentT;
-            return accumulated / totalLength;
-        }
-
-        public ListTag toNBT() {
-            ListTag curveTag = new ListTag();
-            for (CurveSegment segment : segments) {
-                ListTag parameters = new ListTag();
-                if (segment instanceof LineSegment line) {
-                    parameters.add(line.start.toNBT());
-                    parameters.add(line.end.toNBT());
-                } else if (segment instanceof CubicBezier bezier) {
-                    parameters.add(bezier.p0.toNBT());
-                    parameters.add(bezier.p1.toNBT());
-                    parameters.add(bezier.p2.toNBT());
-                    parameters.add(bezier.p3.toNBT());
-                }
-                curveTag.add(parameters);
-            }
-            return curveTag;
-        }
-
-        public static CompositeCurve fromNBT(ListTag curveTag) {
-            CompositeCurve curve = new CompositeCurve();
-            for (int i = 0; i < curveTag.size(); i++) {
-                ListTag parameters = curveTag.getList(i);
-                if (parameters.size() == 2) {
-                    Point3D start = Point3D.fromNBT((ListTag) parameters.get(0));
-                    Point3D end = Point3D.fromNBT((ListTag) parameters.get(1));
-                    curve.addSegment(new LineSegment(start, end));
-                } else if (parameters.size() == 4) {
-                    Point3D p0 = Point3D.fromNBT((ListTag) parameters.get(0));
-                    Point3D p1 = Point3D.fromNBT((ListTag) parameters.get(1));
-                    Point3D p2 = Point3D.fromNBT((ListTag) parameters.get(2));
-                    Point3D p3 = Point3D.fromNBT((ListTag) parameters.get(3));
-                    curve.addSegment(new CubicBezier(p0, p1, p2, p3));
-                }
-            }
-            return curve;
+        @Override
+        public String toString() {
+            return "Frame{" +
+                    "nearestPoint=" + nearestPoint +
+                    ", tangent=" + tangent +
+                    ", tangent0=" + tangent0 +
+                    ", normal0=" + normal0 +
+                    ", binormal0=" + binormal0 +
+                    ", globalT=" + globalT +
+                    ", localU=" + localU +
+                    '}';
         }
     }
 
-    /**
-     * 调整平行传输标架为一个只保留切线平面方向的标架
-     * 假设我们的路升降十分小幅度，所以不需要考虑法线方向
-     * @param inputFrame 输入的标架
-     * @return 调整后的标架
-     */
-    public static Frame adjustmentFrame(Frame inputFrame) {
-        // 创建新的Frame对象，避免修改原始对象
-        Frame outputFrame = new Frame(inputFrame.position, inputFrame.tangent, inputFrame.normal, inputFrame.binormal);
-        // 取整标架y坐标放置某些时候标架上的y坐标抖动
-        outputFrame.position = inputFrame.position;
-
-        // 强制标架法线朝上
-        var worldUp = new CurveRoute.Point3D(0, 1, 0);
-        if (outputFrame.normal.dot(worldUp) < 0) {
-            outputFrame = new CurveRoute.Frame(outputFrame.position, outputFrame.tangent,
-                    outputFrame.normal.multiply(-1), outputFrame.binormal.multiply(-1));
-        }
-
-        // 切线方向仅水平
-        outputFrame.tangent = new Point3D(inputFrame.tangent.x, 0, inputFrame.tangent.z).normalize();
-
-        // 法线竖直向上
-        outputFrame.normal = new Point3D(0, 1, 0);
-
-        // 副法线为切线和法线的叉积
-        outputFrame.binormal = outputFrame.tangent.cross(outputFrame.normal);
-
-        return outputFrame;
+    private static ListTag vec2NBT(Vec3 point) {
+        ListTag pointTag = new ListTag();
+        pointTag.add(DoubleTag.valueOf(point.x));
+        pointTag.add(DoubleTag.valueOf(point.y));
+        pointTag.add(DoubleTag.valueOf(point.z));
+        return pointTag;
     }
 
-    /*
-    // 使用示例
+    private static Vec3 nbt2Vec(ListTag pointTag) {
+        return new Vec3(pointTag.getDouble(0), pointTag.getDouble(1), pointTag.getDouble(2));
+    }
+
     public static void main(String[] args) {
-        // 创建复合曲线
-        CompositeCurve curve = new CompositeCurve();
+        CurveRoute route = new CurveRoute();
 
-        // 添加直线段
-        Point3D lineStart = new Point3D(0, 320, 0);
-        Point3D lineEnd = new Point3D(16*2, 320, 16*2);
-        curve.addSegment(new LineSegment(lineStart, lineEnd));
+        // 1. 添加一条从 (0,0,0) 到 (10,0,0) 的直线
+        route.addSegment(new LineSegment(new Vec3(0, 0, 0), new Vec3(10, 10, 10)));
 
-        // 添加贝塞尔曲线段
-        Point3D p0 = new Point3D(16*2, 320, 16*2);
-        Point3D p1 = new Point3D(32*2, 320, 32*2);
-        Point3D p2 = new Point3D(32*2, 320, 60*2);
-        Point3D p3 = new Point3D(60*2, 320, 60*2);
-        curve.addSegment(new CubicBezier(p0, p1, p2, p3));
+        // 2. 添加一段贝塞尔曲线
+        route.addSegment(new BezierSegment(
+                new Vec3(10, 10, 10),
+                new Vec3(15, 15, 15),
+                new Vec3(25, 20, 30),
+                new Vec3(30, 20, 35)
+        ));
 
-        // 测试点
-        Point3D testPoint = new Point3D(120, 220, 120);
+        System.out.println("Total Curve Length: " + route.getTotalLength());
 
-        // 查找最近点
-        NearestPointResult result = curve.findNearestPoint(testPoint);
+        // 3. 测试寻找最近点
+        System.out.println("\nTesting findNearestPoint for (5, 1, 0):");
+        var test1 = new Vec3(5, 1, 0);
+        var a = route.getFrame(test1);
 
-        // 输出结果
-        System.out.println("testPoint: " + testPoint);
-        System.out.println("nearestPoint: " + result.nearestPoint);
-        System.out.println("dis: " + result.distance);
-        System.out.println("parameter t: " + result.parameter);
-        System.out.println("segmentIndex: " + result.segmentIndex);
-        System.out.println("Frame: " + result.frame);
+        System.out.println(a);
+        var vec1 = test1.subtract(a.nearestPoint);
+        System.out.println(vec1.dot(a.tangent0));
 
-        for (int i = 0; i < 10; i++) {
-            Point3D testPoint0 = new Point3D(i, 220, i);
-            // 查找最近点
-            NearestPointResult result0 = curve.findNearestPoint(testPoint0);
+        System.out.println("\nTesting findNearestPoint for (25, 21, 30):");
+        var test2 = new Vec3(25, 19, 32);
+        var b = route.getFrame(test2);
 
-            double t = result0.parameter;
-            double t1 = curve.getGlobalParameter(result0.segmentIndex, t);
-            double l = curve.getTotalLength();
-            System.out.println(t1 + " " + l + " " + l * t1);
+        System.out.println(b);
+        var vec2 = test2.subtract(b.nearestPoint);
+        System.out.println(vec2.dot(b.tangent0));
+
+        // 4. 测试光栅化 (XZ平面)
+        System.out.println("\nRasterizing segment 0 (n=2):");
+        List<Vec3> raster = route.segments.get(1).rasterize(2);
+        for (Vec3 p : raster) {
+            System.out.printf("[%d, %d] ", (int)p.x, (int)p.z);
         }
-
-        int[][] pic = new int[64][64];
-        for (CurveSegment segment : curve.getSegments()) {
-            for (Point3D p : segment.rasterize(2)) {
-                pic[(int) p.x][(int) p.z] = 255;
-            }
-        }
-//        ArrayToPNG.saveArrayAsPNG(pic, List.of(), "D://测试噪声图//噪声图//testb.png");
-
-        // 显示标架的连续性检查
-        System.out.println("\n标架连续性检查:");
-        List<Frame> frames = curve.parallelFrames;
-        for (int i = 1; i < Math.min(5, frames.size()); i++) {
-            Frame f1 = frames.get(i-1);
-            Frame f2 = frames.get(i);
-            double dot = f1.normal.dot(f2.normal);
-            System.out.printf("相邻标架法线点积: %.6f (接近1表示连续)\n", dot);
-        }
-    }*/
+    }
 }

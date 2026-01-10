@@ -1,0 +1,6 @@
+{
+  "class": "roadbed",
+  "type": "tunnel",
+  "template": "tongdarailway:railway/tunnel/large_brick_tunnel",
+  "height_offset": 0
+}

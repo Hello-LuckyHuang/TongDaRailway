@@ -16,6 +16,7 @@ public class RailwayBuilder {
     private final Map<RegionPos, Future<?>> regionFutures = new ConcurrentHashMap<>();
     public final Map<RegionPos, RailwayMap> regionRailways = new ConcurrentHashMap<>();
     public final Map<RegionPos, int[][]> regionHeightMap = new ConcurrentHashMap<>();
+    public final Map<RegionPos, int[][]> regionStructureMap = new ConcurrentHashMap<>();
 
     private final LinkedBlockingQueue<Runnable> regionRailwayLoadQueue = new LinkedBlockingQueue<Runnable>(); //Ïß³Ì³Ø
     private final ThreadPoolExecutor regionRailwayLoadPoolExecutor = new ThreadPoolExecutor(64, 1024, 1, TimeUnit.DAYS, regionRailwayLoadQueue);

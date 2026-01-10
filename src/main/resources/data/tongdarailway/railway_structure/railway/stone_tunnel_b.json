@@ -1,0 +1,6 @@
+{
+  "class": "roadbed",
+  "type": "tunnel",
+  "template": "tongdarailway:railway/tunnel/stone_tunnel_b",
+  "height_offset": 0
+}

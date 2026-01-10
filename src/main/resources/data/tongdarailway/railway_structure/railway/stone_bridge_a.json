@@ -1,0 +1,6 @@
+{
+  "class": "roadbed",
+  "type": "bridge",
+  "template": "tongdarailway:railway/bridge/stone_bridge_a",
+  "height_offset": 5
+}

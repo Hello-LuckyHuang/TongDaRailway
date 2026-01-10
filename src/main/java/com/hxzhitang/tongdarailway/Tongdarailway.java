@@ -21,13 +21,12 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import org.slf4j.Logger;
 
-/**
- * 问题
- * 1. 标架倒塌
- * 2. 路径重合(基本减轻)
- * 3. 进结构
- * 4. 出口选择错误(避免)
- * 5. 站线不优雅的连接
+/*
+种子 -4301944397657168414
+-684 131 1547
+缺区块 558 78 1054
+结构避让测试: -1031 73 328 | -769 159 5503
+车站连接 -1351 160 3034
  */
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
@@ -40,7 +39,7 @@ public class Tongdarailway {
 
     // Mod常量
     public static final int CHUNK_GROUP_SIZE = 128;  // 一个路线生成区域的大小
-    public static final int HEIGHT_MAX_INCREMENT = 100;  // 路线生成最大高度相对于海平面的增量
+    public static final int HEIGHT_MAX_INCREMENT = 60;  // 路线生成最大高度相对于海平面的增量
 
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.

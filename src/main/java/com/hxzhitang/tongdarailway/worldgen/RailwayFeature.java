@@ -9,8 +9,9 @@ import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.hxzhitang.tongdarailway.railway.RailwayMap;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
+import com.hxzhitang.tongdarailway.structure.ModStructureManager;
 import com.hxzhitang.tongdarailway.structure.RailwayTemplate;
-import com.hxzhitang.tongdarailway.structure.RoadbedManager;
+import com.hxzhitang.tongdarailway.structure.StationTemplate;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.CurveRoute;
 import com.hxzhitang.tongdarailway.util.MyMth;
@@ -19,8 +20,10 @@ import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.trains.track.*;
 import net.createmod.catnip.data.Couple;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -58,11 +61,14 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
 
         // 放置车站
         for (StationPlanner.StationGenInfo stationPlace : railwayMap.stations) {
-            var station = stationPlace.stationStructure();
+            var station = stationPlace.stationTemplate();
             if (station == null) continue;
             var pos = stationPlace.placePos();
+            var center = pos.getCenter();
 
-            station.putSegment(world, cPos, pos);
+            if (station.getBoundChunks(center).contains(cPos)) {
+                placeStation(cPos, center, station, chunk);
+            }
         }
 
         // 放置铁轨刷怪笼
@@ -143,6 +149,30 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         }
     }
 
+    private static void placeStation(ChunkPos cPos, Vec3 center, StationTemplate station, ChunkAccess chunk) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                var test = new Vec3(cPos.x*16+x, center.y + 1, cPos.z*16+z);
+                if (!station.isInVoxel(test.subtract(center)))
+                    continue;
+                for (int oy = station.getLowerBound(); oy < station.getUpperBound(); oy++) {
+                    int y = oy + (int) center.y;
+                    var p = new Vec3(cPos.x*16+x, y, cPos.z*16+z);
+                    var blockState = station.getBlockState(p.subtract(center));
+                    if (blockState == null) {
+                        // 应对机械动力蓝图保存的nbt文件不包含空气
+                        if (station.isInVoxel(p.subtract(center))) {
+                            blockState = Blocks.AIR.defaultBlockState();
+                        } else {
+                            continue;
+                        }
+                    }
+                    chunk.setBlockState(new BlockPos(x, y, z), blockState, true);
+                }
+            }
+        }
+    }
+
     private static Vec3 getStartVec(Vec3 dir) {
         double offX;
         if (Math.abs(dir.x) < 1e-6) {
@@ -167,44 +197,32 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
 
     private static void placeRoadbed(RailwayMap railwayMap, ChunkPos cPos, ChunkAccess chunk, WorldGenLevel world) {
         var routes = railwayMap.routeMap.get(cPos);
-        for (CurveRoute.CompositeCurve route : routes) {
+        for (CurveRoute route : routes) {
             int seed = route.getSegments().size();
-            RailwayTemplate ground = RoadbedManager.getRandomGround(seed);
-            RailwayTemplate bridge = RoadbedManager.getRandomBridge(seed);
-            RailwayTemplate tunnel = RoadbedManager.getRandomTunnel(seed);
-            // 1.获取一个线上点和一个标架
-            var testPoint = new CurveRoute.Point3D(cPos.x*16+8, 80, cPos.z*16+8);
-            CurveRoute.NearestPointResult result0 = route.findNearestPoint(testPoint);
+            RailwayTemplate ground = ModStructureManager.getRandomGround(seed);
+            RailwayTemplate bridge = ModStructureManager.getRandomBridge(seed);
+            RailwayTemplate tunnel = ModStructureManager.getRandomTunnel(seed);
 
-            var nearestPoint0 = result0.nearestPoint;
-            var frame0 = result0.frame;
-            var normal0 = frame0.getVerticalXZNormal(); // 法线
-
-            // 2.扫描平面
-            double x0 = nearestPoint0.x, y0 = nearestPoint0.y, z0 = nearestPoint0.z;
-            double A = normal0.x, B = normal0.y+1E-5, C = normal0.z;
-            double D = -(A*x0 + B*y0 + C*z0);
             for (int x = 0; x < 16; x++) {
                 for (int z = 0; z < 16; z++) {
-                    // 3.获取标架下坐标
-                    // 我们认为路面不会有大幅起伏
-                    // 同一个xz只采样一个标架
-                    int wx = cPos.x*16 + x;
-                    int wz = cPos.z*16 + z;
-                    double y = -(A/B)*wx - (C/B)*wz - (D/B);
-                    var worldPoint = new CurveRoute.Point3D(wx, y, wz);
-                    var result = route.findNearestPoint(worldPoint);
-                    var nearest = result.nearestPoint;
-                    var frame = CurveRoute.adjustmentFrame(result.frame);
+                    // 获取一个线上点
+                    var testPoint0 = new Vec3(cPos.x*16+x, 80, cPos.z*16+z);
+                    CurveRoute.Frame frame = route.getFrame(testPoint0);
 
-                    double t = route.getGlobalParameter(result.segmentIndex, result.parameter);
+                    var nearest0 = frame.nearestPoint;
 
-                    // 4.根据曲线上高度和实际高度判断应用桥隧
-                    BlockPos nearestPos = new BlockPos((int) nearest.x, (int) nearest.y, (int) nearest.z);
+                    double t = frame.globalT;
+                    var normal0 = frame.normal0;
+                    var binormal0 = frame.binormal0;
+
+                    Vec3 vec0 = testPoint0.subtract(nearest0);
+
+                    // 根据曲线上高度和实际高度判断应用桥隧
+                    BlockPos nearestPos = new BlockPos((int) nearest0.x, (int) nearest0.y, (int) nearest0.z);
                     int h = world.getHeight(Heightmap.Types.OCEAN_FLOOR_WG, nearestPos.getX(), nearestPos.getZ());
 
-                    boolean conditionBridge = nearest.y > h + 10;
-                    boolean conditionTunnel = nearest.y < h - 9;
+                    boolean conditionBridge = nearest0.y > h + 10;
+                    boolean conditionTunnel = nearest0.y < h - 9;
 
                     // 随机获取一个路基，使用路线段数作为种子来选择
                     RailwayTemplate structureTemplate;
@@ -216,30 +234,55 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         structureTemplate = ground;
                     }
 
+                    double z0 = vec0.dot(binormal0);
+
+                    if (structureTemplate == null || !structureTemplate.isInVoxel(1, 1, z0))
+                        continue;
+
                     for (int oy = structureTemplate.getLowerBound(); oy <= structureTemplate.getUpperBound(); oy++) {
-                        double y1 = y + oy;
+                        int y = oy + (int) nearest0.y;
+                        var testPoint = new Vec3(cPos.x*16+x, y, cPos.z*16+z);
+                        var vec = testPoint.subtract(nearest0);
 
-                        // 计算到曲线点的向量
-                        var worldPoint1 = new CurveRoute.Point3D(wx, y1, wz);
-                        var vec = worldPoint1.subtract(nearest);
+                        double localX = t * route.getTotalLength();;
+                        double localY = vec.dot(normal0);
+                        double localZ = vec.dot(binormal0);
 
-                        if (Math.abs(vec.dot(frame.tangent)) > 3)
-                            continue;
-
-                        // 在标架下的坐标
-                        double localX = t * route.getTotalLength();    // 沿曲线方向 - 对应原始X
-                        double localY = vec.dot(frame.normal);     // 法线方向 - 对应原始Y
-                        double localZ = vec.dot(frame.binormal);   // 副法线方向 - 对应原始Z
-
-                        // 5.根据标架下坐标,从模板结构找到对应方块,并且放置
+                        // 根据标架下坐标,从模板结构找到对应方块,并且放置
                         BlockState blockState = structureTemplate.getBlockState(localX, localY, localZ);
                         if (blockState != null) {
-                            BlockPos blockPos = new BlockPos(x, (int) Math.round(y1), z);
+                            BlockPos blockPos = new BlockPos(x, y, z);
+                            chunk.setBlockState(blockPos, blockState, true);
+                        }
+                    }
+                    // 向下填充地基直到遇到支撑方块(隧道不考虑向下填充地基)
+                    if (conditionTunnel)
+                        continue;
+
+                    for (int oy = structureTemplate.getLowerBound() - 1; oy > structureTemplate.getLowerBound() - 100; oy--) {
+                        int y = oy + (int) nearest0.y;
+
+                        BlockPos blockPos = new BlockPos(x, y, z);
+
+                        if (chunk.getBlockState(blockPos).isFaceSturdy(world, blockPos, Direction.UP)) {
+                            break;
+                        }
+
+                        var testPoint = new Vec3(cPos.x*16+x, y, cPos.z*16+z);
+                        var vec = testPoint.subtract(nearest0);
+
+                        double localX = t * route.getTotalLength();;
+                        double localY = vec.dot(normal0);
+                        double localZ = vec.dot(binormal0);
+
+                        BlockState blockState = structureTemplate.getBlockState(localX, localY, localZ);
+                        if (blockState != null) {
                             chunk.setBlockState(blockPos, blockState, true);
                         }
                     }
                 }
             }
+
         }
     }
 }

@@ -1,0 +1,6 @@
+{
+  "class": "roadbed",
+  "type": "ground",
+  "template": "tongdarailway:railway/ground/roadbed_a",
+  "height_offset": 5
+}

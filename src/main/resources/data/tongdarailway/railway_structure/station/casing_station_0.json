@@ -1,0 +1,6 @@
+{
+  "class": "station",
+  "type": "normal",
+  "template": "tongdarailway:station/normal/casing_station_0",
+  "height_offset": 10
+}
