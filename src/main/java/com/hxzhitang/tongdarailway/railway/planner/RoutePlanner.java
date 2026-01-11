@@ -122,7 +122,7 @@ public class RoutePlanner {
             sampler.buildQuadTree(CHUNK_GROUP_SIZE*samplingNum);
             long endTime = System.currentTimeMillis();
 //            sampler.printStatistics();
-            Tongdarailway.LOGGER.info(" Build HeightMap time: {}ms", endTime - startTime);
+//            Tongdarailway.LOGGER.info(" Build HeightMap time: {}ms", endTime - startTime);
         } catch (InterruptedException e) {
             Tongdarailway.LOGGER.error(e.getMessage());
         } finally {
@@ -242,10 +242,6 @@ public class RoutePlanner {
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
         int framed2 = ((max - min) / 4) + 1;
 
-        // -6630103939123469904
-        // -560 71 3184
-        // 1443514625631274284
-        // -1296 116 1262
         if (adPath.size() > framed2*2 && framed2*2 >= 3) {
             // 平滑起末
             double fh = con.connectStart()[2];
@@ -612,7 +608,7 @@ public class RoutePlanner {
             } else {
                 // 强行连接
                 addBezier(start, startDir, end.subtract(start), endDir);
-                Tongdarailway.LOGGER.warn("!!!!! => The road position cannot be determined, and the line has been forced to connect. {} {}", start, end);
+                Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect. {} {}", start, end);
             }
         }
 
@@ -795,14 +791,13 @@ public class RoutePlanner {
                 }
             } else {
                 way.addSegment(CurveRoute.BezierSegment.getCubicBezier(start, startDir, endOffset, endDir));
-                Vec3 cut = new Vec3(MyMth.splitFunc(endDir.x), 0, MyMth.splitFunc(endDir.z));
                 trackPutInfos.add(TrackPutInfo.getByDir(
                         new BlockPos((int) start.x, (int) start.y, (int) start.z),
                         startDir,
                         new TrackPutInfo.BezierInfo(
                                 start,
                                 startDir,
-                                endOffset.add(cut),
+                                endOffset,
                                 endDir
                         )
                 ));

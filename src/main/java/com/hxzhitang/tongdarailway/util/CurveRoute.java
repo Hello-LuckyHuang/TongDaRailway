@@ -127,7 +127,13 @@ public class CurveRoute {
 //        System.out.printf("Tangent    : (%.2f, %.2f, %.2f)\n", closestTangent.x, closestTangent.y, closestTangent.z);
 //        System.out.printf("Global T   : %.4f (Distance: %.2f / %.2f)\n", tGlobal, closestDist, totalLength);
 
-        return new Frame(closestPos, closestTangent, tGlobal, p1.segmentU + (p2.segmentU - p1.segmentU) * fraction);
+        return new Frame(
+                closestPos,
+                closestTangent,
+                tGlobal,
+                p1.segmentU + (p2.segmentU - p1.segmentU) * fraction,
+                p1.segmentIndex
+        );
     }
 
     // --- 内部实现类：LineSegment ---
@@ -402,7 +408,9 @@ public class CurveRoute {
         public final double globalT;
         public final double localU;
 
-        public Frame(Vec3 pos, Vec3 tangent, double globalT, double localU) {
+        private final int segmentIndex;
+
+        public Frame(Vec3 pos, Vec3 tangent, double globalT, double localU, int segmentIndex) {
             this.nearestPoint = pos;
             this.tangent = tangent;
             this.tangent0 = new Vec3(tangent.x, 0, tangent.z).normalize();
@@ -410,6 +418,7 @@ public class CurveRoute {
             this.binormal0 = tangent0.cross(normal0);
             this.globalT = globalT;
             this.localU = localU;
+            this.segmentIndex = segmentIndex;
         }
 
         @Override
@@ -438,6 +447,7 @@ public class CurveRoute {
         return new Vec3(pointTag.getDouble(0), pointTag.getDouble(1), pointTag.getDouble(2));
     }
 
+    /*
     public static void main(String[] args) {
         CurveRoute route = new CurveRoute();
 
@@ -478,4 +488,5 @@ public class CurveRoute {
             System.out.printf("[%d, %d] ", (int)p.x, (int)p.z);
         }
     }
+     */
 }

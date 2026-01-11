@@ -93,8 +93,8 @@ public class StationPlanner {
         var eastAssignedExits = assignExits(getExitsPos(east));
         var westAssignedExits = assignExits(getExitsPos(west));
 
-        var tpos = thisStations.get(0).placePos;
-        Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos);
+//        var tpos = thisStations.get(0).placePos;
+//        Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos);
 
 
         result.add(ConnectionGenInfo.getConnectionInfo(thisAssignedExits.get(3), eastAssignedExits.get(2), new Vec3(1, 0, 0)));
