@@ -6,7 +6,6 @@ import com.hxzhitang.tongdarailway.blocks.TrackSpawnerBlockRenderer;
 import com.hxzhitang.tongdarailway.datagen.ModDataGen;
 import com.hxzhitang.tongdarailway.event.FeatureRegistry;
 import com.mojang.logging.LogUtils;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -30,7 +29,8 @@ import org.slf4j.Logger;
 
 种子 216126112278392742
 -960 63 1424
-[ ] 对角线段缺失 1839 85 959
+[x] 对角线段缺失 1839 85 959
+[x] 调平不工作/错误的未升降的直线 1341 76 884
 
 -6630103939123469904
 -560 71 3184

@@ -240,7 +240,7 @@ public class RoutePlanner {
         //卷积平滑 保持首末点不变
         int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = ((max - min) / 4) + 1;
+        int framed2 = ((max - min) / 2) + 1;
 
         if (adPath.size() > framed2*2 && framed2*2 >= 3) {
             // 平滑起末
@@ -406,7 +406,7 @@ public class RoutePlanner {
         // 转换为世界坐标系
         List<Vec3> path0 = new ArrayList<>();
 
-        for (int i = 2; i < path.size() - 2; i++) {
+        for (int i = 0; i < path.size() - 2; i++) {
             int[] point = path.get(i);
             path0.add(MyMth.inRegionPos2WorldPos(
                     regionPos,
@@ -431,12 +431,9 @@ public class RoutePlanner {
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
-        Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(30));
-        if (con.startDir().dot(con.exitDir()) > 0.999) {
-            result.addLine(con.start(), pA);
-        } else {
-            result.connectWay(con.start(), pA, con.startDir(), con.exitDir().reverse(), true);
-        }
+        Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(25));
+        pA = new Vec3(pA.x(), (int)((con.start().y+path1.getFirst().y)/2), pA.z());
+        result.addBezier(con.start(), con.startDir(), pA.subtract(con.start()), con.exitDir().reverse());
 
         path1.addFirst(pA);
 
@@ -494,13 +491,11 @@ public class RoutePlanner {
         }
 
         // 终点车站连接
-        Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(30));
+        Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(25));
+        pB = new Vec3(pB.x(), (int)((con.end().y+last.y)/2), pB.z());
         result.connectWay(last, pB, startDir, con.exitDir().reverse(), false);
-        if (con.endDir().dot(con.exitDir().reverse()) > 0.999) {
-            result.addLine(pB, con.end());
-        } else {
-            result.connectWay(pB, con.end(), con.exitDir(), con.endDir(), true);
-        }
+
+        result.addBezier(pB, con.exitDir(), con.end().subtract(pB), con.endDir());
 
         return result;
     }
@@ -776,7 +771,7 @@ public class RoutePlanner {
         }
 
         public void addBezier(Vec3 start, Vec3 startDir, Vec3 endOffset, Vec3 endDir) {
-            if (Math.abs(startDir.dot(endDir)) > 0.9999 && startDir.dot(endOffset.normalize()) > 0.9999) {
+            if (Math.abs(startDir.dot(endDir)) > 0.9999 && startDir.dot(endOffset.normalize()) > 0.9999 && endOffset.y == 0) {
                 Vec3 end = start.add(endOffset);
                 way.addSegment(new CurveRoute.LineSegment(start, end));
                 int n = Math.max((int) Math.abs(start.x - end.x), (int) Math.abs(start.z - end.z));
