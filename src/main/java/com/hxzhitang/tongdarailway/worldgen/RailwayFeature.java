@@ -21,6 +21,7 @@ import com.simibubi.create.content.trains.track.*;
 import net.createmod.catnip.data.Couple;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -234,6 +235,32 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         structureTemplate = ground;
                     }
 
+                    double localX = 0;
+                    var seg = route.getSegment(frame.segmentIndex);
+                    if (seg instanceof CurveRoute.BezierSegment curve) {
+                        double length = curve.getLength();
+                        localX = frame.localU * length;
+                        int n = (int) (length / structureTemplate.getWidth());
+                        int l = n * structureTemplate.getWidth();
+                        double s = (length - l) / 2;
+                        if (localX < s)
+                            localX = 0;
+                        else if (localX >= s && localX < l+s)
+                            localX = localX - s;
+                        else
+                            localX = structureTemplate.getWidth();
+                    } else if (seg instanceof CurveRoute.LineSegment line) {
+                        Vec3 dir = line.end.subtract(line.start);
+                        int a = Mth.equal(dir.x, 0) ? 0 : dir.x > 0 ? 1 : -1;
+                        int b = Mth.equal(dir.z, 0) ? 0 : dir.z > 0 ? 1 : -1;
+                        localX = Math.abs(a*nearest0.x+b*nearest0.z)/Math.sqrt(a*a+b*b);
+                        if (frame.localU > 0.95)
+                            localX = structureTemplate.getWidth();
+                        else if (frame.localU < 0.05)
+                            localX = 0;
+                    }
+
+
                     double z0 = vec0.dot(binormal0);
 
                     if (structureTemplate == null || !structureTemplate.isInVoxel(1, 1, z0))
@@ -244,8 +271,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         var testPoint = new Vec3(cPos.x*16+x, y, cPos.z*16+z);
                         var vec = testPoint.subtract(nearest0);
 
-                        double localX = t * route.getTotalLength();;
-                        double localY = vec.dot(normal0);
+                        double localY = vec.dot(normal0) - 0.05;
                         double localZ = vec.dot(binormal0);
 
                         // 根据标架下坐标,从模板结构找到对应方块,并且放置
@@ -271,8 +297,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         var testPoint = new Vec3(cPos.x*16+x, y, cPos.z*16+z);
                         var vec = testPoint.subtract(nearest0);
 
-                        double localX = t * route.getTotalLength();;
-                        double localY = vec.dot(normal0);
+                        double localY = vec.dot(normal0) - 0.05;
                         double localZ = vec.dot(binormal0);
 
                         BlockState blockState = structureTemplate.getBlockState(localX, localY, localZ);

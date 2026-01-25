@@ -19,7 +19,7 @@ public class RailwayTemplate extends ModTemplate {
     public boolean isInVoxel(double x, double y, double z) {
         int originalX = (int) Math.floor(x) % getWidth();
 
-        int originalY = (int) Math.round(y + heightOffset + 1);  // 从路面高度计y坐标
+        int originalY = (int) Math.ceil(y + heightOffset + 1);  // 从路面高度计y坐标
         int originalZ = (int) Math.floor(z + getDepth() / 2.0);
 
         return voxelGrid.isInVoxel(originalX, originalY, originalZ);
@@ -33,7 +33,7 @@ public class RailwayTemplate extends ModTemplate {
         int originalX = (int) Math.floor(x) % getWidth();
 
         // 原始Y和Z坐标由局部坐标决定（考虑网格中心）
-        int originalY = (int) Math.round(y + heightOffset + 1);  // 从路面高度计y坐标
+        int originalY = (int) Math.ceil(y + heightOffset + 1);  // 从路面高度计y坐标
         int originalZ = (int) Math.floor(z + getDepth() / 2.0);
 
         // 重复最底层方块
