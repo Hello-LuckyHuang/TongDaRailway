@@ -1,30 +1,20 @@
 package com.hxzhitang.tongdarailway.railway;
 
-import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.planner.RoutePlanner;
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
-import com.hxzhitang.tongdarailway.test.ArrayToPNG;
 import com.hxzhitang.tongdarailway.util.*;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.LevelHeightAccessor;
-import net.minecraft.world.level.chunk.ProtoChunk;
-import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static com.hxzhitang.tongdarailway.Tongdarailway.CHUNK_GROUP_SIZE;
 

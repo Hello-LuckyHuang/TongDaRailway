@@ -1,0 +1,6 @@
+{
+  "class": "station",
+  "type": "normal",
+  "template": "tongdarailway:station/normal/large_stone_station",
+  "height_offset": 0
+}

@@ -1,0 +1,6 @@
+{
+  "class": "station",
+  "type": "underground",
+  "template": "tongdarailway:station/underground/large_underground_station",
+  "height_offset": 0
+}

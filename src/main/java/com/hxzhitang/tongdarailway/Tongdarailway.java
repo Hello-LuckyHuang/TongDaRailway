@@ -38,6 +38,10 @@ import org.slf4j.Logger;
 -560 71 3184
 1443514625631274284
 -1296 116 1262
+
+-8105556503839263868
+529 197 3400
+2750 108 2873
  */
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
@@ -50,7 +54,7 @@ public class Tongdarailway {
 
     // Mod常量
     public static final int CHUNK_GROUP_SIZE = 128;  // 一个路线生成区域的大小
-    public static final int HEIGHT_MAX_INCREMENT = 100;  // 路线生成最大高度相对于海平面的增量
+    public static final int HEIGHT_MAX_INCREMENT = 60;  // 路线生成最大高度相对于海平面的增量
 
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.

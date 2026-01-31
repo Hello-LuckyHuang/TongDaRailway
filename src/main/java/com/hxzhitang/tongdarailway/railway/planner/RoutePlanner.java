@@ -240,7 +240,7 @@ public class RoutePlanner {
         //卷积平滑 保持首末点不变
         int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = ((max - min) / 2) + 1;
+        int framed2 = ((max - min) / 2) + 20;
 
         if (adPath.size() > framed2*2 && framed2*2 >= 3) {
             // 平滑起末
@@ -309,22 +309,23 @@ public class RoutePlanner {
         }
 
         List<Vec3> path1 = new ArrayList<>();
-        for (int i = 1; i < path0.size()-10; i+=6) {
+        for (int i = 0; i < path0.size()-12; i+=6) {
             path1.add(path0.get(i));
         }
+        path1.addLast(path0.getLast());
 
         // 连接线路和车站
-        Vec3 last = path1.getLast();
+//        Vec3 last = path1.getLast();
 
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
         Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(25));
-        pA = new Vec3(pA.x(), (int) path1.getFirst().y, pA.z());
+//        pA = new Vec3(pA.x(), (int) path1.getFirst().y, pA.z());
         result.addBezier(con.start(), con.startDir(), pA.subtract(con.start()), con.exitDir().reverse());
 
         Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(25));
-        pB = new Vec3(pB.x(), (int) last.y, pB.z());
+//        pB = new Vec3(pB.x(), (int) last.y, pB.z());
 
         path1.addFirst(pA);
         path1.addLast(pB);
@@ -571,11 +572,12 @@ public class RoutePlanner {
             Vec3 e = new Vec3(end.x, h, end.z);
             var connect = getConnect(BlockPos.containing(s), BlockPos.containing(e), startDir, endDir, maximiseTurn);
             if (connect != null) {
-                if (connect.startExtent < 8)
-                    h = (int) start.y;
-                else if (connect.endExtent < 8)
-                    h = (int) end.y;
-
+                if (connect.startExtent < 4 || connect.endExtent < 4) {
+                    if (connect.startExtent < connect.endExtent)
+                        h = (int) start.y;
+                    else
+                        h = (int) end.y;
+                }
                 Vec3 conStart = new Vec3(connect.startPos.x, h, connect.startPos.z);
                 Vec3 conEnd = new Vec3(connect.endPos.x, h, connect.endPos.z);
                 if (connect.startExtent != 0) {

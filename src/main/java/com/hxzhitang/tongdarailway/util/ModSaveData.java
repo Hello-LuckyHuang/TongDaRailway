@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ModSaveData extends SavedData {
-    public static final String NAME = "tongdarailway_mod_railway_data";
+    public static final String NAME = "tongdarailway_mod_railway_data_v1";
     public final Map<RegionPos, RailwayMap> regionRailways = new ConcurrentHashMap<>();
 
     public void putRailwayMap(RegionPos regionPos, RailwayMap railwayMap) {
