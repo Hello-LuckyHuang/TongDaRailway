@@ -105,7 +105,7 @@ public class RailwayMap {
 
         double length = new Vec2(picEnd[0]-picStart[0], picEnd[1]-picStart[1]).length();
 
-        Vec3 p = new Vec3(x, 0, z);
+        Vec3 p = new Vec3(picEnd[0]-x, 0, picEnd[1]-z);
 
         Vec3 va = new Vec3(picEnd[0]-picStart[0], 0, picEnd[1]-picStart[1]).normalize();
         Vec3 vert = new Vec3(0, 1, 0);
