@@ -28,7 +28,7 @@ public abstract class NoiseBasedChunkGeneratorMixin {
         var dimensionType = level.dimensionType();
         // 只有主世界生成路
         if (dimensionType.effectsLocation().toString().equals("minecraft:overworld")) {
-            RegionPos regionPos = MyMth.regionPosFromChunkPos(chunk.getPos());
+            RegionPos regionPos = RegionPos.regionPosFromChunkPos(chunk.getPos());
 
             RailwayBuilder railwayBuilder = RailwayBuilder.getInstance(level.getSeed(), level);
             railwayBuilder.generateRailway(regionPos);

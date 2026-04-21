@@ -14,14 +14,12 @@ import com.hxzhitang.tongdarailway.structure.RailwayTemplate;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.CurveRoute;
-import com.hxzhitang.tongdarailway.util.MyMth;
 import com.mojang.serialization.Codec;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.trains.track.*;
 import net.createmod.catnip.data.Couple;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -43,7 +41,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
     @Override
     public boolean place(@NotNull FeaturePlaceContext<RailwayFeatureConfig> ctx) {
         ChunkPos cPos = new ChunkPos(ctx.origin());
-        RegionPos regionPos = MyMth.regionPosFromChunkPos(cPos);
+        RegionPos regionPos = RegionPos.regionPosFromChunkPos(cPos);
         WorldGenLevel world = ctx.level();
         ChunkAccess chunk = world.getChunk(cPos.x, cPos.z);
 

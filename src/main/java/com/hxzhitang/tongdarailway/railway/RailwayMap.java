@@ -38,35 +38,26 @@ public class RailwayMap {
 
     // 规划铁路路线方法
     public void startPlanningRoutes(WorldGenRegion level) {
-
-
-        // 生成损耗图
-        RoutePlanner routePlanner = new RoutePlanner(regionPos);
-        int[][] costMap = routePlanner.getCostMap(level);
-
+        var builder = RailwayBuilder.getInstance(level.getSeed());
         // 生成车站位置和连接规划
+        RoutePlanner routePlanner = new RoutePlanner();
         StationPlanner stationPlanner = new StationPlanner(regionPos);
         stations.addAll(StationPlanner.generateStation(regionPos, level.getLevel(), level.getSeed()));
         var connections = stationPlanner.generateConnections(level.getLevel(), level.getSeed());
         // 生成路线图
-//        List<List<int[]>> test = new ArrayList<>();
-
         for (StationPlanner.ConnectionGenInfo connection : connections) {
-            // 转为损耗图下坐标系
-            int[] picStart = AStarPathfinder.world2PicPos(connection.connectStart(), regionPos);
-            int[] picEnd = AStarPathfinder.world2PicPos(connection.connectEnd(), regionPos);
-            List<int[]> way = AStarPathfinder.findPath(costMap, picStart, picEnd,
+            int[] picStart = connection.connectStart();
+            int[] picEnd = connection.connectEnd();
+            List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 1,
                     (x, y) -> {
                         int scopeLimit = scopeLimit(x, y, picStart, picEnd);
-                        int heightLimit = costMap[x][y] < level.getSeaLevel()+2 ? 100 : 0;
+                        int heightLimit = builder.getHeight(x, y) < level.getSeaLevel()+2 ? 100 : 0;
                         return scopeLimit + heightLimit;
                     });
-//            test.add(way);
             // 设置出口坐标
-            var route = routePlanner.getWay(way, costMap, connection, level.getLevel());
+            var route = routePlanner.getWay(builder, way, connection, level.getLevel());
             putChunk(route);
         }
-
     }
 
     /**

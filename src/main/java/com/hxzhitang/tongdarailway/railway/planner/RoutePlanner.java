@@ -2,182 +2,29 @@ package com.hxzhitang.tongdarailway.railway.planner;
 
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
-import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.*;
 import net.createmod.catnip.math.AngleHelper;
 import net.createmod.catnip.math.VecHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.LevelHeightAccessor;
-import net.minecraft.world.level.chunk.ChunkGenerator;
-import net.minecraft.world.level.chunk.ProtoChunk;
-import net.minecraft.world.level.chunk.UpgradeData;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import static com.hxzhitang.tongdarailway.Tongdarailway.CHUNK_GROUP_SIZE;
 import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
-import static com.hxzhitang.tongdarailway.railway.RailwayMap.samplingNum;
 
 // 寻路 生成路径曲线
 public class RoutePlanner {
-    private final RegionPos regionPos;
-
-    public RoutePlanner(RegionPos regionPos) {
-        this.regionPos = regionPos;
-    }
-
-    // 获得十字形四向区域的损耗图
-    public int[][] getCostMap(WorldGenRegion level) {
-        int[][] heightMap = new int[CHUNK_GROUP_SIZE*samplingNum*3][CHUNK_GROUP_SIZE*samplingNum*3];
-        for (int[] ints : heightMap) {
-            Arrays.fill(ints, 50000);
-        }
-        for (int i = -1; i < 2; i++) {
-            for (int j = -1; j < 2; j++) {
-                if (Math.abs(i) == 1 && Math.abs(j) == 1)
-                    continue;
-                RegionPos rPos = new RegionPos(regionPos.x() + i, regionPos.z() + j);
-                RailwayBuilder builder = RailwayBuilder.getInstance(level.getSeed());
-                int[][] map;
-                if (builder != null) {
-                    map = builder.regionHeightMap
-                            .computeIfAbsent(rPos, k -> getHeightMap(level.getLevel(), rPos));
-                } else {
-                    map = getHeightMap(level.getLevel(), rPos);
-                }
-                for (int x = 0; x < map.length; x++) {
-                    for (int z = 0; z < map[0].length; z++) {
-                        int picX = (i+1)*CHUNK_GROUP_SIZE*samplingNum+x;
-                        int picZ = (j+1)*CHUNK_GROUP_SIZE*samplingNum+z;
-                        heightMap[picX][picZ] = map[x][z];
-                    }
-                }
-            }
-        }
-
-        return heightMap;
-    }
-
-    private int[][] getHeightMap(ServerLevel serverLevel, RegionPos regionPos) {
-        // 高度自适应采样地形高度图
-        ChunkGenerator gen = serverLevel.getChunkSource().getGenerator();
-        RandomState cfg = serverLevel.getChunkSource().randomState();
-
-        // 创建采样器：阈值=10，最大层数=3，每个节点4x4采样
-        AdaptiveHeightSampler sampler = new AdaptiveHeightSampler(10, 3, 4, (x, z) -> {
-            int wx = (int) (x*(16.0/samplingNum) + regionPos.x()*CHUNK_GROUP_SIZE*16);
-            int wz = (int) (z*(16.0/samplingNum) + regionPos.z()*CHUNK_GROUP_SIZE*16);
-            return gen.getBaseHeight(wx, wz, Heightmap.Types.WORLD_SURFACE_WG, serverLevel, cfg);
-        });
-
-        try {
-            long startTime = System.currentTimeMillis();
-            // 构建四叉树，区域大小
-            sampler.buildQuadTree(CHUNK_GROUP_SIZE*samplingNum);
-            long endTime = System.currentTimeMillis();
-//            sampler.printStatistics();
-//            Tongdarailway.LOGGER.info(" Build HeightMap time: {}ms", endTime - startTime);
-        } catch (InterruptedException e) {
-            Tongdarailway.LOGGER.error(e.getMessage());
-        } finally {
-            sampler.shutdown();
-        }
-
-        int[][] heightMap = sampler.generateImage(CHUNK_GROUP_SIZE*samplingNum, CHUNK_GROUP_SIZE*samplingNum);
-
-        return heightMap;
-    }
-
-    private int[][] getStructureMap(WorldGenRegion level, RegionPos regionPos) {
-        // 计算遗迹
-        var serverLevel = level.getLevel();
-        var registryAccess = level.registryAccess();
-        var chunkGeneratorStructureState = serverLevel.getChunkSource().getGeneratorState();
-        var structureManager = serverLevel.structureManager();
-        var structureFeatureManager = serverLevel.getStructureManager();
-
-        var dimensionType = level.dimensionType();
-        LevelHeightAccessor levelHeightAccessor = LevelHeightAccessor.create(dimensionType.minY(), dimensionType.height());
-        var biomeRegistry = registryAccess.registryOrThrow(Registries.BIOME);
-
-        List<BlockPos> structurePos = new ArrayList<>();
-
-        try(ExecutorService executor = Executors.newFixedThreadPool(16)) {
-            // 创建线程池
-            CountDownLatch latch = new CountDownLatch(CHUNK_GROUP_SIZE * CHUNK_GROUP_SIZE);
-            for (int gx = 0; gx < CHUNK_GROUP_SIZE; gx++) {
-                for (int gz = 0; gz < CHUNK_GROUP_SIZE; gz++) {
-                    int finalGx = gx;
-                    int finalGz = gz;
-                    executor.execute(() -> {
-                        try {
-                            // 执行任务
-                            var protoChunk = new ProtoChunk(new ChunkPos(regionPos.x() * CHUNK_GROUP_SIZE + finalGx, regionPos.z() * CHUNK_GROUP_SIZE + finalGz), UpgradeData.EMPTY, levelHeightAccessor, biomeRegistry, null);
-                            //计算和连接遗迹
-                            serverLevel.getChunkSource().getGenerator().createStructures(registryAccess, chunkGeneratorStructureState, structureManager, protoChunk, structureFeatureManager);
-                            var res = protoChunk.getAllStarts();
-//                            var structureRegistry = registryAccess.registryOrThrow(Registries.STRUCTURE);
-                            res.forEach((key, value) -> {
-//                                String structureName = Objects.requireNonNull(structureRegistry.getKey(key)).toString();
-                                BlockPos pos = new BlockPos(protoChunk.getPos().x * 16, 0, protoChunk.getPos().z * 16);
-                                structurePos.add(pos);
-                            });
-                        } finally {
-                            latch.countDown();
-                        }
-                    });
-                }
-            }
-
-            // 等待所有任务完成
-            latch.await();
-            // 关闭线程池
-            executor.shutdown();
-        } catch (InterruptedException e) {
-            Tongdarailway.LOGGER.error("Search Feature Err: ", e);
-        }
-
-        int[][] costMap = new int[CHUNK_GROUP_SIZE*samplingNum][CHUNK_GROUP_SIZE*samplingNum];
-        for (BlockPos pos : structurePos) {
-            int[] p = new int[] {
-                    (pos.getX() - regionPos.x()*CHUNK_GROUP_SIZE*16)*samplingNum/16,
-                    (pos.getZ() - regionPos.z()*CHUNK_GROUP_SIZE*16)*samplingNum/16
-            };
-            for (int x = -5*samplingNum; x < 5*samplingNum; x++) {
-                for (int z = -5*samplingNum; z < 5*samplingNum; z++) {
-                    int px = p[0]+x;
-                    int pz = p[1]+z;
-                    if (px > 0 && px < costMap.length && pz > 0 && pz < costMap[0].length)
-                        costMap[px][pz] = 500;
-                }
-            }
-        }
-
-        return costMap;
-    }
-
     /**
      * 规划路径
      * @param way 路线图
      */
-    public ResultWay getWay(List<int[]> way, int[][] costMap, StationPlanner.ConnectionGenInfo connectionGenInfo, ServerLevel level) {
-        List<int[]> handledHeightWay = handleHeight(way, level, costMap, connectionGenInfo);
-        // 结果转为中心图坐标系
-        handledHeightWay = handledHeightWay.stream().map(AStarPathfinder::pic2RegionPos).toList();
+    public ResultWay getWay(RailwayBuilder builder, List<int[]> way, StationPlanner.ConnectionGenInfo connectionGenInfo, ServerLevel level) {
+        List<int[]> handledHeightWay = handleHeight(builder, way, level, connectionGenInfo);
         return connectTrackNew3(handledHeightWay, connectionGenInfo);
     }
 
@@ -186,13 +33,12 @@ public class RoutePlanner {
      * @param path 直行路径(区域内坐标)
      * @param level 服务器世界
      */
-    public List<int[]> handleHeight(List<int[]> path, ServerLevel level, int[][] heightMap, StationPlanner.ConnectionGenInfo con) {
+    public List<int[]> handleHeight(RailwayBuilder builder, List<int[]> path, ServerLevel level, StationPlanner.ConnectionGenInfo con) {
         List<double[]> adPath = new LinkedList<>();
         int seaLevel = level.getSeaLevel();
-
         // 测高
         for (int[] p : path) {
-            int h = heightMap[p[0]][p[1]];
+            int h = builder.getHeight(p[0], p[1]);
             // 限制高度范围
             h = Math.max(h, seaLevel + 5);
             h = Math.min(h, seaLevel + HEIGHT_MAX_INCREMENT);
@@ -269,11 +115,7 @@ public class RoutePlanner {
 
         for (int i = 0; i < path.size() - 2; i++) {
             int[] point = path.get(i);
-            path0.add(MyMth.inRegionPos2WorldPos(
-                    regionPos,
-                    new Vec3(point[0], point[2], point[1])
-                            .multiply(16.0/samplingNum, 1, 16.0/samplingNum)
-            ));
+            path0.add(new Vec3(point[0], point[2], point[1]));
         }
 
         List<Vec3> path1 = new ArrayList<>();
@@ -346,109 +188,6 @@ public class RoutePlanner {
         }
 
         // 终点车站连接
-        result.addBezier(pB, con.exitDir(), con.end().subtract(pB), con.endDir());
-
-        return result;
-    }
-
-    /**
-     * 将直线路径段通过三阶贝塞尔曲线平滑连接
-     * @param path 路线的端点
-     * @return 连接后的复合曲线
-     */
-    private ResultWay connectTrackNew2(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
-        // 转换为世界坐标系
-        List<Vec3> path0 = new ArrayList<>();
-
-        for (int i = 0; i < path.size() - 2; i++) {
-            int[] point = path.get(i);
-            path0.add(MyMth.inRegionPos2WorldPos(
-                    regionPos,
-                    new Vec3(point[0], point[2], point[1])
-                            .multiply(16.0/samplingNum, 1, 16.0/samplingNum)
-            ));
-        }
-
-        List<Vec3> path1 = new ArrayList<>();
-        for (int i = 0; i < path0.size()-10; i+=6) {
-            path1.add(path0.get(i));
-        }
-
-        Vec3 a1 = path1.getLast();
-        Vec3 b1 = path0.getLast();
-        Vec3 c1 = a1.add(b1.subtract(a1).scale(0.5));
-        path1.addLast(new Vec3((int) c1.x(), (int) c1.y(), (int) c1.z()));
-
-        // 连接线路和车站
-        Vec3 last = path1.getLast();
-
-        ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
-
-        // 车站起点连接
-        Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(25));
-        pA = new Vec3(pA.x(), (int) path1.getFirst().y, pA.z());
-        result.addBezier(con.start(), con.startDir(), pA.subtract(con.start()), con.exitDir().reverse());
-
-        path1.addFirst(pA);
-
-        int size = path1.size();
-        int i = 0;
-        Vec3 startDir = con.exitDir();
-        while (i < size - 1) {
-            Vec3 start = path1.get(i);
-            Vec3 end = path1.get(i + 1);
-            Vec3 endDir;
-
-            Vec3 nextDir = end.subtract(start).multiply(1,0,1).normalize();
-
-            // 根据夹角计算出方向
-            double dot = startDir.dot(nextDir);
-            double cross = startDir.x * nextDir.z - startDir.z * nextDir.x;
-
-            boolean maximiseTurn = start.y == end.y;
-            if (dot > 0.9999) {
-                // 前方 直线
-                endDir = startDir.reverse();
-                result.addBezier(start, startDir, end.subtract(start), endDir);
-                i++;
-                continue;
-            } else if (dot > 0.975) {
-                // 前方 平行
-                endDir = startDir.reverse();
-            } else if (dot > 0.75) {
-                // 斜前方 135度钝角
-                endDir = MyMth.rotateAroundY(startDir, cross, 45).reverse();
-            } else if (dot > 0.165) {
-                // 侧前方 90度直角
-                endDir = MyMth.rotateAroundY(startDir, cross, 90).reverse();
-            } else {
-                // 侧方/侧后方 直角+下一轮
-                endDir = MyMth.rotateAroundY(startDir, cross, 90).reverse();
-
-                Vec3 d1 = new Vec3(MyMth.splitFunc(startDir.x), 0, MyMth.splitFunc(startDir.z));
-                Vec3 d2 = new Vec3(MyMth.splitFunc(endDir.x), 0, MyMth.splitFunc(endDir.z)).reverse();
-                Vec3 newPoint = start.add(d1.scale(8)).add(d2.scale(8));
-                result.addBezier(start, startDir, newPoint.subtract(start), endDir);
-
-                path1.add(i+1, newPoint);
-
-                startDir = endDir.reverse();
-                i++;
-                size++;
-                continue;
-            }
-
-            result.connectWay(start, end, startDir, endDir, maximiseTurn);
-
-            startDir = endDir.reverse();
-            i++;
-        }
-
-        // 终点车站连接
-        Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(25));
-        pB = new Vec3(pB.x(), (int) last.y, pB.z());
-        result.connectWay(last, pB, startDir, con.exitDir().reverse(), false);
-
         result.addBezier(pB, con.exitDir(), con.end().subtract(pB), con.endDir());
 
         return result;

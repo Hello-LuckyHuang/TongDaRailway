@@ -3,7 +3,6 @@ package com.hxzhitang.tongdarailway.railway.planner;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.ModStructureManager;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
-import com.hxzhitang.tongdarailway.util.MyMth;
 import com.hxzhitang.tongdarailway.util.MyRandom;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -35,7 +34,7 @@ public class StationPlanner {
         long regionSeed = seed + regionPos.hashCode();
         List<StationGenInfo> result = new ArrayList<>();
         int[] pos = MyRandom.generatePoints(regionSeed, CHUNK_GROUP_SIZE);
-        ChunkPos chunkPos = new ChunkPos(MyMth.chunkPosXFromRegionPos(regionPos, pos[0]), MyMth.chunkPosZFromRegionPos(regionPos, pos[1]));
+        ChunkPos chunkPos = regionPos.getChunkPos(pos[0], pos[1]);
 
         int x = chunkPos.getBlockX(0);
         int z = chunkPos.getBlockZ(0);

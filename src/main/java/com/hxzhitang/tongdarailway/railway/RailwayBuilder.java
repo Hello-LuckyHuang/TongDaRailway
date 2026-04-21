@@ -1,13 +1,29 @@
 package com.hxzhitang.tongdarailway.railway;
 
 import com.hxzhitang.tongdarailway.Tongdarailway;
+import com.hxzhitang.tongdarailway.util.AdaptiveHeightSampler;
 import com.hxzhitang.tongdarailway.util.ModSaveData;
+import com.mojang.datafixers.util.Pair;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.chunk.UpgradeData;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.RandomState;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.*;
+
+import static com.hxzhitang.tongdarailway.Tongdarailway.CHUNK_GROUP_SIZE;
+import static com.hxzhitang.tongdarailway.railway.RailwayMap.samplingNum;
 
 public class RailwayBuilder {
     private static RailwayBuilder instance;
@@ -81,5 +97,57 @@ public class RailwayBuilder {
         } finally {
             regionFutures.remove(regionPos);
         }
+    }
+
+
+    /*
+     * 缓存图管理
+     * 旨在删除主播之前写的错乱的各种坐标系统
+     * 统一使用世界坐标
+     *
+     * */
+    /**
+     * 获取指定坐标的高度
+     * @param wx 世界坐标x
+     * @param wz 世界坐标z
+     * @return 高度
+     */
+    public int getHeight(int wx, int wz) {
+        RegionPos regionPos = new RegionPos(Math.floorDiv(wx, 16*CHUNK_GROUP_SIZE), Math.floorDiv(wz, 16*CHUNK_GROUP_SIZE));
+        int[][] heightMap = regionHeightMap
+                .computeIfAbsent(regionPos, k -> getHeightMap(level.getLevel(), regionPos));
+        int px = Math.floorDiv(wx - regionPos.x()*CHUNK_GROUP_SIZE*16, 16/samplingNum);
+        int pz = Math.floorDiv(wz - regionPos.z()*CHUNK_GROUP_SIZE*16, 16/samplingNum);
+        return heightMap[px][pz];
+    }
+
+    private int[][] getHeightMap(ServerLevel serverLevel, RegionPos regionPos) {
+        // 高度自适应采样地形高度图
+        ChunkGenerator gen = serverLevel.getChunkSource().getGenerator();
+        RandomState cfg = serverLevel.getChunkSource().randomState();
+
+        // 创建采样器：阈值=10，最大层数=3，每个节点4x4采样
+        AdaptiveHeightSampler sampler = new AdaptiveHeightSampler(10, 3, 4, (x, z) -> {
+            int wx = (int) (x*(16.0/samplingNum) + regionPos.x()*CHUNK_GROUP_SIZE*16);
+            int wz = (int) (z*(16.0/samplingNum) + regionPos.z()*CHUNK_GROUP_SIZE*16);
+            return gen.getBaseHeight(wx, wz, Heightmap.Types.WORLD_SURFACE_WG, serverLevel, cfg);
+        });
+
+        try {
+            long startTime = System.currentTimeMillis();
+            // 构建四叉树，区域大小
+            sampler.buildQuadTree(CHUNK_GROUP_SIZE*samplingNum);
+            long endTime = System.currentTimeMillis();
+//            sampler.printStatistics();
+            Tongdarailway.LOGGER.info(" Region {} Build HeightMap time: {}ms", regionPos, endTime - startTime);
+        } catch (InterruptedException e) {
+            Tongdarailway.LOGGER.error("Build HeightMap Err", e);
+        } finally {
+            sampler.shutdown();
+        }
+
+        int[][] heightMap = sampler.generateImage(CHUNK_GROUP_SIZE*samplingNum, CHUNK_GROUP_SIZE*samplingNum);
+
+        return heightMap;
     }
 }
