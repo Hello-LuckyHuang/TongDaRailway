@@ -43,8 +43,6 @@ public class RailwayMap {
         // 生成损耗图
         RoutePlanner routePlanner = new RoutePlanner(regionPos);
         int[][] costMap = routePlanner.getCostMap(level);
-        // 寻路专用
-        int[][] costMapFindPath = routePlanner.getStructureCostMap(level);
 
         // 生成车站位置和连接规划
         StationPlanner stationPlanner = new StationPlanner(regionPos);
@@ -61,8 +59,7 @@ public class RailwayMap {
                     (x, y) -> {
                         int scopeLimit = scopeLimit(x, y, picStart, picEnd);
                         int heightLimit = costMap[x][y] < level.getSeaLevel()+2 ? 100 : 0;
-                        int structLimit = costMapFindPath[x][y];
-                        return scopeLimit + heightLimit + structLimit;
+                        return scopeLimit + heightLimit;
                     });
 //            test.add(way);
             // 设置出口坐标

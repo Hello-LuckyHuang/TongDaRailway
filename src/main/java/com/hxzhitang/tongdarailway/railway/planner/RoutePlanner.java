@@ -72,38 +72,6 @@ public class RoutePlanner {
         return heightMap;
     }
 
-    // 获得十字形四向区域的结构损耗图
-    public int[][] getStructureCostMap(WorldGenRegion level) {
-        int[][] structureMap = new int[CHUNK_GROUP_SIZE*samplingNum*3][CHUNK_GROUP_SIZE*samplingNum*3];
-        for (int[] ints : structureMap) {
-            Arrays.fill(ints, 50000);
-        }
-        for (int i = -1; i < 2; i++) {
-            for (int j = -1; j < 2; j++) {
-                if (Math.abs(i) == 1 && Math.abs(j) == 1)
-                    continue;
-                RegionPos rPos = new RegionPos(regionPos.x() + i, regionPos.z() + j);
-                RailwayBuilder builder = RailwayBuilder.getInstance(level.getSeed());
-                int[][] map;
-                if (builder != null) {
-                    map = builder.regionStructureMap
-                            .computeIfAbsent(rPos, k -> getStructureMap(level,rPos));
-                } else {
-                    map = getStructureMap(level,rPos);
-                }
-                for (int x = 0; x < map.length; x++) {
-                    for (int z = 0; z < map[0].length; z++) {
-                        int picX = (i+1)*CHUNK_GROUP_SIZE*samplingNum+x;
-                        int picZ = (j+1)*CHUNK_GROUP_SIZE*samplingNum+z;
-                        structureMap[picX][picZ] = map[x][z];
-                    }
-                }
-            }
-        }
-
-        return structureMap;
-    }
-
     private int[][] getHeightMap(ServerLevel serverLevel, RegionPos regionPos) {
         // 高度自适应采样地形高度图
         ChunkGenerator gen = serverLevel.getChunkSource().getGenerator();
