@@ -32,6 +32,7 @@ public class RailwayBuilder {
     private final Map<RegionPos, Future<?>> regionFutures = new ConcurrentHashMap<>();
     public final Map<RegionPos, RailwayMap> regionRailways = new ConcurrentHashMap<>();
     public final Map<RegionPos, int[][]> regionHeightMap = new ConcurrentHashMap<>();
+    private final Map<RegionPos, int[][]> regionOccupyMap = new ConcurrentHashMap<>();
 
     private final LinkedBlockingQueue<Runnable> regionRailwayLoadQueue = new LinkedBlockingQueue<Runnable>(); //Ïß³Ì³Ø
     private final ThreadPoolExecutor regionRailwayLoadPoolExecutor = new ThreadPoolExecutor(64, 1024, 1, TimeUnit.DAYS, regionRailwayLoadQueue);
@@ -146,8 +147,20 @@ public class RailwayBuilder {
             sampler.shutdown();
         }
 
-        int[][] heightMap = sampler.generateImage(CHUNK_GROUP_SIZE*samplingNum, CHUNK_GROUP_SIZE*samplingNum);
+        return sampler.generateImage(CHUNK_GROUP_SIZE*samplingNum, CHUNK_GROUP_SIZE*samplingNum);
+    }
 
-        return heightMap;
+    public void addOccupy(int wx, int wz) {
+        RegionPos regionPos = new RegionPos(Math.floorDiv(wx, 16*CHUNK_GROUP_SIZE), Math.floorDiv(wz, 16*CHUNK_GROUP_SIZE));
+        int px = Math.floorDiv(wx - regionPos.x()*CHUNK_GROUP_SIZE*16, 16/samplingNum);
+        int pz = Math.floorDiv(wz - regionPos.z()*CHUNK_GROUP_SIZE*16, 16/samplingNum);
+        regionOccupyMap.computeIfAbsent(regionPos, k -> new int[][]{})[px][pz] = 10;
+    }
+
+    public boolean isOccupy(int wx, int wz) {
+        RegionPos regionPos = new RegionPos(Math.floorDiv(wx, 16*CHUNK_GROUP_SIZE), Math.floorDiv(wz, 16*CHUNK_GROUP_SIZE));
+        int px = Math.floorDiv(wx - regionPos.x()*CHUNK_GROUP_SIZE*16, 16/samplingNum);
+        int pz = Math.floorDiv(wz - regionPos.z()*CHUNK_GROUP_SIZE*16, 16/samplingNum);
+        return regionOccupyMap.computeIfAbsent(regionPos, k -> new int[][]{})[px][pz] != 0;
     }
 }

@@ -274,25 +274,32 @@ public class RoutePlanner {
             List<TrackPutInfo> trackPutInfos
     ) {
         public void connectWay(Vec3 start, Vec3 end, Vec3 startDir, Vec3 endDir, boolean maximiseTurn) {
-            int h = (int) ((start.y + end.y) / 2);
-            Vec3 s = new Vec3(start.x, h, start.z);
-            Vec3 e = new Vec3(end.x, h, end.z);
+            int h0 = (int) start.y;
+            int h1 = (int) ((start.y + end.y) / 3);
+            int h2 = (int) (2*(start.y + end.y) / 3);
+            int h3 = (int) end.y;
+            Vec3 s = new Vec3(start.x, h1, start.z);
+            Vec3 e = new Vec3(end.x, h1, end.z);
             var connect = getConnect(BlockPos.containing(s), BlockPos.containing(e), startDir, endDir, maximiseTurn);
             if (connect != null) {
-                if (connect.startExtent < 4 || connect.endExtent < 4) {
-                    if (connect.startExtent < connect.endExtent)
-                        h = (int) start.y;
-                    else
-                        h = (int) end.y;
+                if (connect.startExtent < 3) {
+                    h1 = h0;
                 }
-                Vec3 conStart = new Vec3(connect.startPos.x, h, connect.startPos.z);
-                Vec3 conEnd = new Vec3(connect.endPos.x, h, connect.endPos.z);
+                if (connect.endExtent < 3) {
+                    h2 = h3;
+                }
+
+                Vec3 lStart = new Vec3(start.x, h0, start.z);
+                Vec3 bStart = new Vec3(connect.startPos.x, h1, connect.startPos.z);
+                Vec3 bEnd = new Vec3(connect.endPos.x, h2, connect.endPos.z);
+                Vec3 lEnd = new Vec3(end.x, h3, end.z);
+
                 if (connect.startExtent != 0) {
-                    addBezier(start, startDir, conStart.subtract(start), startDir.reverse());
+                    addBezier(lStart, startDir, bStart.subtract(lStart), startDir.reverse());
                 }
-                addBezier(conStart, startDir, conEnd.subtract(conStart), endDir);
+                addBezier(bStart, startDir, bEnd.subtract(bStart), endDir);
                 if (connect.endExtent != 0) {
-                    addBezier(conEnd, endDir.reverse(), end.subtract(conEnd), endDir);
+                    addBezier(bEnd, endDir.reverse(), lEnd.subtract(bEnd), endDir);
                 }
             } else {
                 // 强行连接

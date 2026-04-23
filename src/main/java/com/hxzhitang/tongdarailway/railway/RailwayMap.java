@@ -50,7 +50,8 @@ public class RailwayMap {
             int[] picEnd = connection.connectEnd();
             List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 1,
                     (x, y) -> {
-                        int scopeLimit = scopeLimit(x, y, picStart, picEnd);
+//                        int scopeLimit = scopeLimit(x, y, picStart, picEnd);
+                        int scopeLimit = builder.isOccupy(x, y) ? 10000 : 0;
                         int heightLimit = builder.getHeight(x, y) < level.getSeaLevel()+2 ? 100 : 0;
                         return scopeLimit + heightLimit;
                     });
