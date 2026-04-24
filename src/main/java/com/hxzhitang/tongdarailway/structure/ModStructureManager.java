@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.util.MyRandom;
+import com.hxzhitang.tongdarailway.util.RandomPool;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
@@ -19,6 +20,7 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
 
 import java.io.*;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
@@ -26,10 +28,10 @@ import java.util.zip.GZIPInputStream;
 public class ModStructureManager extends SimpleJsonResourceReloadListener {
     private static final String folder = "railway_structure";
 
-    // 普通车站
-    public static final Map<Integer, StationTemplate> normalStation = new HashMap<>();
-    // 地下车站
-    public static final Map<Integer, StationTemplate> undergroundStation = new HashMap<>();
+    // 4出口车站
+    public static final RandomPool<StationTemplate> station4 = new RandomPool<>();
+    // 2出口车站
+    public static final RandomPool<StationTemplate> station2 = new RandomPool<>();
 
     // 路面路基
     public static final Map<Integer, RailwayTemplate> ground = new HashMap<>();
@@ -76,6 +78,7 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
             String type = GsonHelper.getAsString(jsonobject, "type");
             String nbt = GsonHelper.getAsString(jsonobject, "template");
             int heightOffset = GsonHelper.getAsInt(jsonobject, "height_offset");
+            List<JsonElement> tags = GsonHelper.getAsJsonArray(jsonobject, "tags").asList();
             ResourceLocation nbtLocation = ResourceLocation.fromNamespaceAndPath(
                     nbt.split(":")[0],
                     "structure/" + nbt.split(":")[1] + ".nbt"
@@ -95,24 +98,24 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
 
                 if (rootTag != null) {
                     int id = location.getPath().hashCode();
-                    if (temType.equals("station")) {
-                        switch (type) {
-                            case "normal" -> {
-                                StationTemplate template = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL);
-                                if (template.getExitCount() == 4)
-                                    normalStation.put(id, template);
-                                else
-                                    Tongdarailway.LOGGER.error("Invalid StationTemplate: {}", location.getPath());
-                            }
-                            case "underground" -> {
-                                StationTemplate template = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.UNDER_GROUND);
-                                if (template.getExitCount() == 4)
-                                    undergroundStation.put(id, template);
-                                else
-                                    Tongdarailway.LOGGER.error("Invalid StationTemplate: {}", location.getPath());
-                            }
+                    // 获得标签数组(若为空,则默认添加"default"标签)
+                    int length = tags.isEmpty() ? 2 : tags.size()+1;
+                    String[] tagArray = new String[length];
+                    tagArray[0] = type;
+                    if (tags.isEmpty())
+                        tagArray[1] = "default";
+                    else
+                        for (int i = 0; i < tags.size(); i++) {
+                            tagArray[i+1] = tags.get(i).getAsString();
                         }
-
+                    if (temType.equals("station")) {
+                        StationTemplate template = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL);
+                        if (template.getExitCount() == 4)
+                            station4.add(template, id, tagArray);
+                        else if (template.getExitCount() == 2)
+                            station2.add(template, id, tagArray);
+                        else
+                            Tongdarailway.LOGGER.error("Invalid StationTemplate: {}", location.getPath());
                     } else if (temType.equals("roadbed")) {
                         RailwayTemplate template = new RailwayTemplate(rootTag, heightOffset);
                         switch (type) {
@@ -129,20 +132,16 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
     }
 
     // 随机获取用于生成的结构模板
-    public static StationTemplate getRandomNormalStation(long seed) {
-        if (normalStation.isEmpty()) {
-            return null;
-        }
-
-        return MyRandom.getRandomValueFromMap(normalStation, 84_269 + seed*10000);
+    public static StationTemplate getRandomNormalStation(long seed, int exitNum, String... tags) {
+        String type = "normal";
+        RandomPool<StationTemplate> pool = exitNum == 2 ? station2 : station4;
+        return pool.get(75_457 + seed*10000, type, tags);
     }
 
-    public static StationTemplate getRandomUnderGroundStation(long seed) {
-        if (undergroundStation.isEmpty()) {
-            return null;
-        }
-
-        return MyRandom.getRandomValueFromMap(undergroundStation, 71_1551 + seed*10000);
+    public static StationTemplate getRandomUnderGroundStation(long seed, int exitNum, String... tags) {
+        String type = "underground";
+        RandomPool<StationTemplate> pool = exitNum == 2 ? station2 : station4;
+        return pool.get(75_457 + seed*10000, type, tags);
     }
 
     public static RailwayTemplate getRandomGround(long seed) {

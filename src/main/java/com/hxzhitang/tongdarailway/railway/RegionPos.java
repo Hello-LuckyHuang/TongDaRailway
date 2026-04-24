@@ -3,6 +3,7 @@ package com.hxzhitang.tongdarailway.railway;
 import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.Vec2;
 
 import static com.hxzhitang.tongdarailway.Tongdarailway.CHUNK_GROUP_SIZE;
 
@@ -27,6 +28,22 @@ public record RegionPos(int x, int z) {
      */
     public ChunkPos getChunkPos(int chunkX, int chunkZ) {
         return new ChunkPos(x * CHUNK_GROUP_SIZE + chunkX, z * CHUNK_GROUP_SIZE + chunkZ);
+    }
+
+    /**
+     * 获取基坐标
+     * @return 区域基坐标(世界坐标)
+     */
+    public Vec2 getBasePos() {
+        return new Vec2(x * CHUNK_GROUP_SIZE * 16, z * CHUNK_GROUP_SIZE * 16);
+    }
+
+    /**
+     * 获取区域边长
+     * @return 边长 格
+     */
+    public int getLength() {
+        return CHUNK_GROUP_SIZE * 16;
     }
 
     /**

@@ -125,22 +125,12 @@ public class RoutePlanner {
         path1.addLast(path0.getLast());
 
         // 连接线路和车站
-        Vec3 last = path1.getLast();
-
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
-        Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(25));
-        pA = new Vec3(pA.x(), (int) path1.getFirst().y, pA.z());
-        result.addBezier(con.start(), con.startDir(), pA.subtract(con.start()), con.exitDir().reverse());
+        result.addLine(con.start(), path1.getFirst());
 
-        Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(25));
-        pB = new Vec3(pB.x(), (int) last.y, pB.z());
-
-        path1.addFirst(pA);
-        path1.addLast(pB);
-
-        Vec3 startDir = con.exitDir();
+        Vec3 startDir = con.startDir();
         Vec3 endDir;
         for (int i = 0; i < path1.size() - 1; i++) {
             Vec3 start = path1.get(i);
@@ -148,7 +138,7 @@ public class RoutePlanner {
 
             endDir = MyMth.get8Dir(end.subtract(start)).reverse();
             if (i == path1.size() - 2) // 处理和终点的连接
-                endDir = con.exitDir().reverse();
+                endDir = con.endDir();
 
             if (ResultWay.getConnect(BlockPos.containing(start.multiply(1,0,1)), BlockPos.containing(end.multiply(1,0,1)), startDir, endDir, false) != null) {
                 Vec3 dir = end.subtract(start).multiply(1, 0, 1).normalize();
@@ -188,7 +178,7 @@ public class RoutePlanner {
         }
 
         // 终点车站连接
-        result.addBezier(pB, con.exitDir(), con.end().subtract(pB), con.endDir());
+        result.addLine(path1.getLast(), con.end());
 
         return result;
     }

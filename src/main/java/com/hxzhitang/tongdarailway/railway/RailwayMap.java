@@ -4,6 +4,7 @@ import com.hxzhitang.tongdarailway.railway.planner.RoutePlanner;
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.*;
+import com.mojang.datafixers.util.Pair;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
@@ -42,7 +43,10 @@ public class RailwayMap {
         // 生成车站位置和连接规划
         RoutePlanner routePlanner = new RoutePlanner();
         StationPlanner stationPlanner = new StationPlanner(regionPos);
-        stations.addAll(StationPlanner.generateStation(regionPos, level.getLevel(), level.getSeed()));
+        stations.addAll(
+                StationPlanner.generateStation(regionPos, level.getLevel(), level.getSeed())
+                        .stream().map(Pair::getFirst).toList()
+        );
         var connections = stationPlanner.generateConnections(level.getLevel(), level.getSeed());
         // 生成路线图
         for (StationPlanner.ConnectionGenInfo connection : connections) {

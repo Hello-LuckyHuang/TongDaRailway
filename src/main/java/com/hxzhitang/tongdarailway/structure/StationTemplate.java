@@ -1,5 +1,6 @@
 package com.hxzhitang.tongdarailway.structure;
 
+import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.*;
@@ -94,6 +95,17 @@ public class StationTemplate extends ModTemplate {
 
     public int getExitCount() {
         return exits.size();
+    }
+
+    // 提取出口坐标
+    public List<Exit> getExitsPos(BlockPos placePos) {
+        List<StationTemplate.Exit> exits = new ArrayList<>();
+        for (StationTemplate.Exit exit : getExits()) {
+            BlockPos offset = exit.exitPos();
+            exits.add(new StationTemplate.Exit(placePos.offset(offset), exit.dir()));
+        }
+
+        return exits;
     }
 
     public StationType getType() {
@@ -233,5 +245,16 @@ public class StationTemplate extends ModTemplate {
             BlockPos exitPos,
             Vec3 dir
     ) {
+        // 推远
+        public int[] pushAway(Vec3 target) {
+            Vec3 pos = exitPos.getCenter().multiply(1,0,1);
+            Vec3 t = target.multiply(1,0,1);
+            Vec3 a = t.subtract(pos).normalize();
+            double d = a.dot(dir) * 30;
+            d = Math.max(d, 0) + 30;
+            Vec3 end = dir.scale(d);
+
+            return new int[]{(int) end.x, (int) end.z, exitPos.getY()};
+        }
     }
 }

@@ -2,5 +2,6 @@
   "class": "station",
   "type": "normal",
   "template": "tongdarailway:station/normal/super_brick_station_0",
-  "height_offset": 0
+  "height_offset": 0,
+  "tags": ["default"]
 }
