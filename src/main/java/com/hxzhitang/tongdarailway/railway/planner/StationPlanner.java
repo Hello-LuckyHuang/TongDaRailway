@@ -85,9 +85,10 @@ public class StationPlanner {
                 station = ModStructureManager.getRandomNormalStation(regionSeed, exitNum);
             }
 
+            int finalH = h;
             result.add(new Pair<>(
                     new StationGenInfo(station, new BlockPos(x, h, z)),
-                    node.connected.stream().map(p -> new BlockPos((int) p.x, 0, (int) p.z)).toList()
+                    node.connected.stream().map(p -> new BlockPos((int) p.x, finalH, (int) p.z)).toList()
             ));
         }
 
@@ -109,12 +110,8 @@ public class StationPlanner {
             for (Pair<StationTemplate.Exit, BlockPos> exitBlockPosPair : matching) {
                 var exit = exitBlockPosPair.getFirst();
                 var con = exitBlockPosPair.getSecond();
-                int key = station.placePos.getX()+station.placePos.getZ()+con.getX()+con.getZ();
-                connect.computeIfAbsent(key, k -> {
-                    List<StationTemplate.Exit> list = new ArrayList<>();
-                    list.add(exit);
-                    return list;
-                });
+                int id = station.placePos.getX()+station.placePos.getZ()+con.getX()+con.getZ();
+                connect.computeIfAbsent(id, k -> new ArrayList<>()).add(exit);
             }
 
             var tpos = station.placePos;
