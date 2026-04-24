@@ -254,7 +254,7 @@ public class StationTemplate extends ModTemplate {
             d = Math.max(d, 0) + 30;
             Vec3 end = dir.scale(d);
 
-            return new int[]{(int) end.x, (int) end.z, exitPos.getY()};
+            return new int[]{exitPos.getX() + (int) end.x, exitPos.getZ() + (int) end.z, exitPos.getY()};
         }
     }
 }
