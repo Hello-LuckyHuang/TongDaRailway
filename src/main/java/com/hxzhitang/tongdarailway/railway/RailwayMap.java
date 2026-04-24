@@ -52,7 +52,7 @@ public class RailwayMap {
         for (StationPlanner.ConnectionGenInfo connection : connections) {
             int[] picStart = connection.connectStart();
             int[] picEnd = connection.connectEnd();
-            List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 1,
+            List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 0,
                     (x, y) -> {
                         int scopeLimit = scopeLimit(x, y, picStart, picEnd);
                         int heightLimit = builder.getHeight(x, y) < level.getSeaLevel()+2 ? 100 : 0;
