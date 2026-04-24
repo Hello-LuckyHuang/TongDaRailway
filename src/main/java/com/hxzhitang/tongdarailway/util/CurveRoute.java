@@ -17,7 +17,7 @@ public class CurveRoute {
         Vec3 getPointAt(double u); // u 范围 [0, 1]
         Vec3 getTangentAt(double u);
 
-        List<Vec3> rasterize(int n);
+        Set<Vec3> rasterize(int n, int w);
     }
 
     // 内部类：采样点信息
@@ -135,6 +135,82 @@ public class CurveRoute {
         return null;
     }
 
+    private static Set<Vec3> rasterizePolyline(List<Vec3> samples, int n, int w) {
+        Set<Vec3> points = new HashSet<>();
+        if (samples.isEmpty()) {
+            return points;
+        }
+
+        double radius = Math.max(0.5, w / 2.0);
+
+        // 先填充端点圆盘，避免极短线段漏点
+        for (Vec3 sample : samples) {
+            fillDisk(points, sample.x / n, sample.z / n, radius);
+        }
+
+        // 再填充每一段线段的“胶囊体”
+        for (int i = 1; i < samples.size(); i++) {
+            Vec3 a = samples.get(i - 1);
+            Vec3 b = samples.get(i);
+            fillCapsule(points, a.x / n, a.z / n, b.x / n, b.z / n, radius);
+        }
+
+        return points;
+    }
+
+    private static void fillDisk(Set<Vec3> points, double cx, double cz, double radius) {
+        int minX = Mth.floor(cx - radius);
+        int maxX = Mth.floor(cx + radius);
+        int minZ = Mth.floor(cz - radius);
+        int maxZ = Mth.floor(cz + radius);
+        double r2 = radius * radius;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                double dx = x - cx;
+                double dz = z - cz;
+                if (dx * dx + dz * dz <= r2) {
+                    points.add(new Vec3(x, 0, z));
+                }
+            }
+        }
+    }
+
+    private static void fillCapsule(Set<Vec3> points, double ax, double az, double bx, double bz, double radius) {
+        int minX = Mth.floor(Math.min(ax, bx) - radius);
+        int maxX = Mth.floor(Math.max(ax, bx) + radius);
+        int minZ = Mth.floor(Math.min(az, bz) - radius);
+        int maxZ = Mth.floor(Math.max(az, bz) + radius);
+        double r2 = radius * radius;
+
+        double vx = bx - ax;
+        double vz = bz - az;
+        double len2 = vx * vx + vz * vz;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                double dist2;
+                if (len2 < 1e-8) {
+                    double dx = x - ax;
+                    double dz = z - az;
+                    dist2 = dx * dx + dz * dz;
+                } else {
+                    double t = ((x - ax) * vx + (z - az) * vz) / len2;
+                    t = Mth.clamp(t, 0.0, 1.0);
+                    double px = ax + t * vx;
+                    double pz = az + t * vz;
+                    double dx = x - px;
+                    double dz = z - pz;
+                    dist2 = dx * dx + dz * dz;
+                }
+
+                if (dist2 <= r2) {
+                    points.add(new Vec3(x, 0, z));
+                }
+            }
+        }
+    }
+
     // --- 内部实现类：LineSegment ---
 
     public static class LineSegment implements CurveSegment {
@@ -161,15 +237,15 @@ public class CurveRoute {
         }
 
         @Override
-        public List<Vec3> rasterize(int n) {
-            List<Vec3> points = new ArrayList<>();
+        public Set<Vec3> rasterize(int n, int w) {
+            List<Vec3> samples = new ArrayList<>();
             double len = getLength();
-            int steps = (int) Math.max(1, len / n);
+            int steps = Math.max(1, Mth.ceil(len / Math.max(1.0, n / 2.0)));
+
             for (int i = 0; i <= steps; i++) {
-                Vec3 p = getPointAt((double) i / steps);
-                points.add(new Vec3(p.x / n, 0, p.z / n));
+                samples.add(getPointAt((double) i / steps));
             }
-            return points;
+            return rasterizePolyline(samples, n, w);
         }
     }
 
@@ -183,27 +259,20 @@ public class CurveRoute {
         }
 
         public static BezierSegment getCubicBezier(
-                Vec3 startPos,           // 起点坐标
-                Vec3 startAxis,          // 起点切线方向
-                Vec3 endOffset,          // 终点相对于起点的偏移
-                Vec3 endAxis             // 终点切线方向
+                Vec3 startPos,
+                Vec3 startAxis,
+                Vec3 endOffset,
+                Vec3 endAxis
         ) {
-//            // 计算终点的绝对坐标
             Vec3 endPos = startPos.add(endOffset);
-//
-//            // 归一化轴向量
             Vec3 axis1 = startAxis.normalize();
             Vec3 axis2 = endAxis.normalize();
-//
-//            // 计算控制手柄长度
             double handleLength = determineHandleLength(startPos, endPos, axis1, axis2);
 
-
-            // 计算四个控制点
-            Vec3 p0 = startPos;                                    // 起点
-            Vec3 p1 = startPos.add(axis1.scale(handleLength));    // 第一个控制点
-            Vec3 p2 = endPos.add(axis2.scale(handleLength));      // 第二个控制点
-            Vec3 p3 = endPos; // 终点
+            Vec3 p0 = startPos;
+            Vec3 p1 = startPos.add(axis1.scale(handleLength));
+            Vec3 p2 = endPos.add(axis2.scale(handleLength));
+            Vec3 p3 = endPos;
 
             return new BezierSegment(p0, p1, p2, p3);
         }
@@ -212,7 +281,6 @@ public class CurveRoute {
             Vec3 cross1 = axis1.cross(new Vec3(0, 1, 0));
             Vec3 cross2 = axis2.cross(new Vec3(0, 1, 0));
 
-            // 计算两个轴向的夹角
             double a1 = Mth.atan2(-axis2.z, -axis2.x);
             double a2 = Mth.atan2(axis1.z, axis1.x);
             double angle = a1 - a2;
@@ -222,7 +290,6 @@ public class CurveRoute {
             if (Math.abs(circle - angle) < Math.abs(angle))
                 angle = circle - angle;
 
-            // 如果两个轴向平行
             if (Mth.equal(angle, 0)) {
                 double[] intersect = VecHelper.intersect(end1, end2, axis1, cross2, Direction.Axis.Y);
                 if (intersect != null) {
@@ -239,7 +306,6 @@ public class CurveRoute {
                 return end2.distanceTo(end1) / 3;
             }
 
-            // 如果两个轴向不平行,使用圆弧公式计算
             double n = circle / angle;
             double factor = 4 / 3d * Math.tan(Math.PI / (2 * n));
             double[] intersect = VecHelper.intersect(end1, end2, cross1, cross2, Direction.Axis.Y);
@@ -268,7 +334,6 @@ public class CurveRoute {
         @Override
         public Vec3 getTangentAt(double t) {
             double u = 1 - t;
-            // 一阶导数公式: 3(1-t)^2(p1-p0) + 6(1-t)t(p2-p1) + 3t^2(p3-p2)
             Vec3 tan = p1.subtract(p0).scale(3 * u * u)
                     .add(p2.subtract(p1).scale(6 * u * t))
                     .add(p3.subtract(p2).scale(3 * t * t));
@@ -277,7 +342,6 @@ public class CurveRoute {
 
         @Override
         public double getLength() {
-            // 数值积分近似长度
             double length = 0;
             int steps = 20;
             Vec3 prev = getPointAt(0);
@@ -290,14 +354,15 @@ public class CurveRoute {
         }
 
         @Override
-        public List<Vec3> rasterize(int n) {
-            List<Vec3> points = new ArrayList<>();
-            int steps = 20;
+        public Set<Vec3> rasterize(int n, int w) {
+            List<Vec3> samples = new ArrayList<>();
+            double len = getLength();
+            int steps = Math.max(20, Mth.ceil(len / Math.max(1.0, n / 3.0)));
+
             for (int i = 0; i <= steps; i++) {
-                Vec3 p = getPointAt((double) i / steps);
-                points.add(new Vec3(p.x / n, 0, p.z / n));
+                samples.add(getPointAt((double) i / steps));
             }
-            return points;
+            return rasterizePolyline(samples, n, w);
         }
     }
 

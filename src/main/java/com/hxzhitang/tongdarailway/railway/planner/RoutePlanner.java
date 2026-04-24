@@ -54,7 +54,7 @@ public class RoutePlanner {
         //卷积平滑 保持首末点不变
         int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = ((max - min) / 2) + 20;
+        int framed2 = ((max - min) / 2) + 50;
 
         if (adPath.size() > framed2*2 && framed2*2 >= 3) {
             // 平滑起末
@@ -125,17 +125,17 @@ public class RoutePlanner {
         path1.addLast(path0.getLast());
 
         // 连接线路和车站
-//        Vec3 last = path1.getLast();
+        Vec3 last = path1.getLast();
 
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
         Vec3 pA = con.start().add(con.startDir().scale(30)).add(con.exitDir().scale(25));
-//        pA = new Vec3(pA.x(), (int) path1.getFirst().y, pA.z());
+        pA = new Vec3(pA.x(), (int) path1.getFirst().y, pA.z());
         result.addBezier(con.start(), con.startDir(), pA.subtract(con.start()), con.exitDir().reverse());
 
         Vec3 pB = con.end().add(con.endDir().scale(30)).add(con.exitDir().reverse().scale(25));
-//        pB = new Vec3(pB.x(), (int) last.y, pB.z());
+        pB = new Vec3(pB.x(), (int) last.y, pB.z());
 
         path1.addFirst(pA);
         path1.addLast(pB);
@@ -275,8 +275,8 @@ public class RoutePlanner {
     ) {
         public void connectWay(Vec3 start, Vec3 end, Vec3 startDir, Vec3 endDir, boolean maximiseTurn) {
             int h0 = (int) start.y;
-            int h1 = (int) ((start.y + end.y) / 3);
-            int h2 = (int) (2*(start.y + end.y) / 3);
+            int h1 = (int) ((2*start.y + end.y) / 3);
+            int h2 = (int) ((start.y + 2*end.y) / 3);
             int h3 = (int) end.y;
             Vec3 s = new Vec3(start.x, h1, start.z);
             Vec3 e = new Vec3(end.x, h1, end.z);

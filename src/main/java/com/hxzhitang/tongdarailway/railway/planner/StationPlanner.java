@@ -1,5 +1,6 @@
 package com.hxzhitang.tongdarailway.railway.planner;
 
+import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.ModStructureManager;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
@@ -91,8 +92,8 @@ public class StationPlanner {
         var eastAssignedExits = assignExits(getExitsPos(east));
         var westAssignedExits = assignExits(getExitsPos(west));
 
-//        var tpos = thisStations.get(0).placePos;
-//        Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos);
+        var tpos = thisStations.get(0).placePos;
+        Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos);
 
 
         result.add(ConnectionGenInfo.getConnectionInfo(thisAssignedExits.get(3), eastAssignedExits.get(2), new Vec3(1, 0, 0)));

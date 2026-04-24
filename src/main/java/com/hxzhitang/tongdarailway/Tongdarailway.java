@@ -20,30 +20,6 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import org.slf4j.Logger;
 
-/*
-种子 -4301944397657168414
--684 131 1547
-缺区块 558 78 1054
-结构避让测试: -1031 73 328 | -769 159 5503
-车站连接 -1351 160 3034
--3568 76 3507
-
-种子 216126112278392742
--960 63 1424
-[x] 对角线段缺失 1839 85 959
-[x] 调平不工作/错误的未升降的直线 1341 76 884
-[-] 不错的车站 621 64 3478
-
--6630103939123469904
--560 71 3184
-1443514625631274284
--1296 116 1262
-
--8105556503839263868
-529 197 3400
-2750 108 2873
- */
-
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(Tongdarailway.MODID)
 public class Tongdarailway {

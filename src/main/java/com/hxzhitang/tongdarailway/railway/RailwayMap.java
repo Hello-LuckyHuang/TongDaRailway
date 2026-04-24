@@ -50,8 +50,7 @@ public class RailwayMap {
             int[] picEnd = connection.connectEnd();
             List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 1,
                     (x, y) -> {
-//                        int scopeLimit = scopeLimit(x, y, picStart, picEnd);
-                        int scopeLimit = builder.isOccupy(x, y) ? 10000 : 0;
+                        int scopeLimit = scopeLimit(x, y, picStart, picEnd);
                         int heightLimit = builder.getHeight(x, y) < level.getSeaLevel()+2 ? 100 : 0;
                         return scopeLimit + heightLimit;
                     });
@@ -67,16 +66,12 @@ public class RailwayMap {
      */
     private void putChunk(RoutePlanner.ResultWay route) {
         for (CurveRoute.CurveSegment segment : route.way().getSegments()) {
-            for (Vec3 p : segment.rasterize(16)) {
-                for (int i = -1; i < 2; i++) {
-                    for (int j = -1; j < 2; j++) {
-                        int cx = (int) Math.floor(p.x) + i;
-                        int cz = (int) Math.floor(p.z) + j;
-                        if (cx >= regionPos.x()*CHUNK_GROUP_SIZE && cx < (regionPos.x()+1)*CHUNK_GROUP_SIZE && cz >= regionPos.z()*CHUNK_GROUP_SIZE && cz < (regionPos.z()+1)*CHUNK_GROUP_SIZE) {
-                            routeMap.computeIfAbsent(new ChunkPos(cx, cz), k -> new HashSet<>())
-                                    .add(route.way());
-                        }
-                    }
+            for (Vec3 p : segment.rasterize(16, 3)) {
+                int cx = (int) Math.floor(p.x);
+                int cz = (int) Math.floor(p.z);
+                if (cx >= regionPos.x()*CHUNK_GROUP_SIZE && cx < (regionPos.x()+1)*CHUNK_GROUP_SIZE && cz >= regionPos.z()*CHUNK_GROUP_SIZE && cz < (regionPos.z()+1)*CHUNK_GROUP_SIZE) {
+                    routeMap.computeIfAbsent(new ChunkPos(cx, cz), k -> new HashSet<>())
+                            .add(route.way());
                 }
             }
         }
@@ -90,7 +85,7 @@ public class RailwayMap {
     public static int scopeLimit(int x, int z, int[] picStart, int[] picEnd) {
         // 限制寻路区域
         int maxCost = 10000; // 区域外消耗
-        int A = 64;  // 限制区域最大宽度
+        int A = 256;  // 限制区域最大宽度
 
         double length = new Vec2(picEnd[0]-picStart[0], picEnd[1]-picStart[1]).length();
 
