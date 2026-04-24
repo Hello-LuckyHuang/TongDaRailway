@@ -42,10 +42,10 @@ public class StationPlanner {
         List<Pair<StationGenInfo, List<BlockPos>>> result = new ArrayList<>();
 
         var nodes = RouteGraph.generate(
-                regionPos.getBasePos().x,
-                regionPos.getBasePos().x + regionPos.getLength(),
-                regionPos.getBasePos().y,
-                regionPos.getBasePos().y + regionPos.getLength(),
+                regionPos.getBasePos().x + 100,
+                regionPos.getBasePos().x + regionPos.getLength() - 100,
+                regionPos.getBasePos().y + 100,
+                regionPos.getBasePos().y + regionPos.getLength() - 100,
                 6,
                 regionSeed,
                 70,
