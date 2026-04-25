@@ -9,6 +9,7 @@ import net.minecraft.nbt.*;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.JigsawBlock;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -36,7 +37,11 @@ public class StationTemplate extends ModTemplate {
     }
 
     public StationTemplate(CompoundTag rootTag, int heightOffset, int id, StationType type) {
-        super(rootTag, heightOffset);
+        this(rootTag, heightOffset, id, type, Rotation.NONE);
+    }
+
+    public StationTemplate(CompoundTag rootTag, int heightOffset, int id, StationType type, Rotation rotation) {
+        super(rootTag, heightOffset, rotation);
         this.id = id;
         this.type = type;
 

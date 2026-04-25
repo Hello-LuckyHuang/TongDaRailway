@@ -104,10 +104,11 @@ public class StationPlanner {
             // 根据高度决定生成地上还是地下车站
             int exitNum = node.connected.size() >= 3 ? 4 : 2;
             StationTemplate station;
+            long stationSeed = regionSeed + x* 3L + z* 7L;
             if (h < y - 10) {
-                station = ModStructureManager.getRandomUnderGroundStation(regionSeed, exitNum);
+                station = ModStructureManager.getRandomUnderGroundStation(stationSeed, exitNum);
             } else {
-                station = ModStructureManager.getRandomNormalStation(regionSeed, exitNum);
+                station = ModStructureManager.getRandomNormalStation(stationSeed, exitNum);
             }
 
             int finalH = h;
@@ -141,7 +142,7 @@ public class StationPlanner {
 
             var tpos = station.placePos;
             int exitnum = matching.size();
-            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum);
+            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}, rotation {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum, station.stationTemplate.rotation);
         }
 
         connect.forEach((id, con) -> {

@@ -1,15 +1,22 @@
 package com.hxzhitang.tongdarailway.structure;
 
 import com.hxzhitang.tongdarailway.Tongdarailway;
+import com.simibubi.create.content.contraptions.StructureTransform;
+import net.createmod.catnip.nbt.NBTProcessors;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.level.chunk.HashMapPalette;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.registries.GameData;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -17,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
@@ -26,22 +34,34 @@ public abstract class ModTemplate {
 
     protected int heightOffset = 0;
 
+    public final Rotation rotation;
+
     public ModTemplate(Path path, int heightOffset) {
+        this(path, heightOffset, Rotation.NONE);
+    }
+
+    public ModTemplate(CompoundTag nbt, int heightOffset) {
+        this(nbt, heightOffset, Rotation.NONE);
+    }
+
+    public ModTemplate(Path path, int heightOffset, Rotation rotation) {
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(
                 new GZIPInputStream(Files.newInputStream(path, StandardOpenOption.READ))))) {
             CompoundTag rootTag = NbtIo.read(stream, NbtAccounter.create(0x20000000L));
-            voxelGrid = parseStructureNBT(rootTag);
+            voxelGrid = parseStructureNBT(rootTag, rotation);
         } catch (Exception e) {
             Tongdarailway.LOGGER.error(e.getMessage());
         }
 
         this.heightOffset = heightOffset;
+        this.rotation = rotation;
     }
 
-    public ModTemplate(CompoundTag nbt, int heightOffset) {
-        voxelGrid = parseStructureNBT(nbt);
+    public ModTemplate(CompoundTag nbt, int heightOffset, Rotation rotation) {
+        voxelGrid = parseStructureNBT(nbt, rotation);
 
         this.heightOffset = heightOffset;
+        this.rotation = rotation;
     }
 
     public int getWidth() {return voxelGrid.getWidth();}
@@ -71,19 +91,22 @@ public abstract class ModTemplate {
     /**
      * 解析结构 NBT 数据
      */
-    private VoxelGrid parseStructureNBT(CompoundTag rootTag) {
+    private VoxelGrid parseStructureNBT(CompoundTag rootTag, Rotation rotation) {
         if (rootTag == null) return null;
 
         // 读取基本信息
         ListTag sizeTag = rootTag.getList("size", Tag.TAG_INT);
         int x = sizeTag.getInt(0), y = sizeTag.getInt(1), z = sizeTag.getInt(2);
         BlockPos size = new BlockPos(x, y, z);
+        StructureTransform transform = createRotation(size, rotation);
+        size = getTransformedSize(size, rotation);
 
         // 解析调色板
         List<BlockState> palette = parsePalette(rootTag.getList("palette", Tag.TAG_COMPOUND));
+        palette = palette.stream().map(transform::apply).toList();
 
         // 解析方块数据并构建体素网格
-        int[][][] voxelGrid = parseBlocks(rootTag.getList("blocks", Tag.TAG_COMPOUND), size);
+        int[][][] voxelGrid = parseBlocks(rootTag.getList("blocks", Tag.TAG_COMPOUND), size, transform);
 
         return new VoxelGrid(palette, voxelGrid, size);
     }
@@ -177,7 +200,7 @@ public abstract class ModTemplate {
     /**
      * 解析方块数据并构建体素网格
      */
-    private int[][][] parseBlocks(ListTag blocksTag, BlockPos size) {
+    private int[][][] parseBlocks(ListTag blocksTag, BlockPos size, StructureTransform transform) {
         int[][][] voxelGrid = new int[size.getX()][size.getY()][size.getZ()];
 
         // 初始化网格为 -1（空气）
@@ -199,6 +222,13 @@ public abstract class ModTemplate {
             int y = posTag.getInt(1);
             int z = posTag.getInt(2);
 
+            BlockPos originalPos = new BlockPos(x, y, z);
+            BlockPos tPos = transform.apply(originalPos);
+
+            x = tPos.getX();
+            y = tPos.getY();
+            z = tPos.getZ();
+
             // 读取调色板索引
             int state = blockTag.getInt("state");
 
@@ -209,5 +239,65 @@ public abstract class ModTemplate {
         }
 
         return voxelGrid;
+    }
+
+    private static StructureTransform createRotation(BlockPos size, Rotation rotation) {
+        // 创建原始Y轴旋转变换
+        StructureTransform originalTransform = new StructureTransform(
+                BlockPos.ZERO,
+                Direction.Axis.Y,
+                rotation,
+                Mirror.NONE
+        );
+
+        // 计算原始结构的所有角点
+        List<BlockPos> corners = Arrays.asList(
+                BlockPos.ZERO,
+                new BlockPos(size.getX() - 1, 0, 0),
+                new BlockPos(0, size.getY() - 1, 0),
+                new BlockPos(0, 0, size.getZ() - 1),
+                new BlockPos(size.getX() - 1, size.getY() - 1, 0),
+                new BlockPos(size.getX() - 1, 0, size.getZ() - 1),
+                new BlockPos(0, size.getY() - 1, size.getZ() - 1),
+                new BlockPos(size.getX() - 1, size.getY() - 1, size.getZ() - 1)
+        );
+
+        // 应用旋转变换到所有角点
+        List<BlockPos> transformedCorners = new ArrayList<>();
+        for (BlockPos corner : corners) {
+            transformedCorners.add(originalTransform.apply(corner));
+        }
+
+        // 找到变换后的最小坐标
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        for (BlockPos pos : transformedCorners) {
+            minX = Math.min(minX, pos.getX());
+            minY = Math.min(minY, pos.getY());
+            minZ = Math.min(minZ, pos.getZ());
+        }
+
+        // 计算需要的偏移量
+        BlockPos offset = new BlockPos(-minX, -minY, -minZ);
+
+        // 创建包含偏移的最终变换
+        return new StructureTransform(
+                offset,
+                Direction.Axis.Y,
+                rotation,
+                Mirror.NONE
+        );
+    }
+
+    private static BlockPos getTransformedSize(BlockPos originalSize, Rotation rotation) {
+        if (rotation == Rotation.NONE || rotation == Rotation.CLOCKWISE_180) {
+            return originalSize;
+        }
+
+        // 对于Y轴旋转，X和Z维度会交换
+        int newX = originalSize.getZ();
+        int newY = originalSize.getY();
+        int newZ = originalSize.getX();
+
+        return new BlockPos(newX, newY, newZ);
     }
 }

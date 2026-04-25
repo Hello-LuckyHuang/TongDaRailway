@@ -35,6 +35,8 @@ public class RoutePlanner {
      */
     public List<int[]> handleHeight(RailwayBuilder builder, List<int[]> path, ServerLevel level, StationPlanner.ConnectionGenInfo con) {
         List<double[]> adPath = new LinkedList<>();
+        if (path.isEmpty())
+            return null;
         int seaLevel = level.getSeaLevel();
         // 测高
         for (int[] p : path) {
@@ -70,7 +72,7 @@ public class RoutePlanner {
                 adPath.get(adPath.size() - 1 - i)[2] = lh * (1 - t) + eh * t;
             }
         } else {
-            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disable", adPath.size());
+            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
         }
 
         if (adPath.size() > framed2*2) {
@@ -98,7 +100,7 @@ public class RoutePlanner {
             adPath1.add(adPath.getLast());
             adPath = adPath1;
         } else {
-            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disable", adPath.size());
+            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
         }
 
         return adPath.stream()
@@ -115,6 +117,8 @@ public class RoutePlanner {
      * @return 连接后的复合曲线
      */
     private ResultWay connectTrackNew4(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
+        if (path == null)
+            return null;
         // 转换为世界坐标系
         List<Vec3> path0 = new ArrayList<>();
 

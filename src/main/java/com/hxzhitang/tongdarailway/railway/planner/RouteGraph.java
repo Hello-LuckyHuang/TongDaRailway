@@ -82,7 +82,7 @@ public final class RouteGraph {
      *
      * Arguments are minX maxX minZ maxZ n seed minAngleDegrees maxDegree.
      */
-    public static void main(String[] args) {
+    public static void main000(String[] args) {
         double minX = 0.0;
         double maxX = 100.0;
         double minZ = 0.0;

@@ -1,7 +1,7 @@
 {
   "class": "station",
   "type": "underground",
-  "template": "tongdarailway:station/underground/diorite_underground_station_1",
+  "template": "tongdarailway:station/underground/small_under_wood_0",
   "height_offset": 0,
   "tags": ["default"]
 }

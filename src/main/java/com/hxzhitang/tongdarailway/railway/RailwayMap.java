@@ -1,5 +1,6 @@
 package com.hxzhitang.tongdarailway.railway;
 
+import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.planner.RoutePlanner;
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
@@ -40,27 +41,31 @@ public class RailwayMap {
     // 规划铁路路线方法
     public void startPlanningRoutes(WorldGenRegion level) {
         var builder = RailwayBuilder.getInstance(level.getSeed());
-        // 生成车站位置和连接规划
-        RoutePlanner routePlanner = new RoutePlanner();
-        StationPlanner stationPlanner = new StationPlanner(regionPos);
-        stations.addAll(
-                StationPlanner.generateStation(regionPos, level.getLevel(), level.getSeed())
-                        .stream().map(Pair::getFirst).toList()
-        );
-        var connections = stationPlanner.generateConnections(level.getLevel(), level.getSeed());
-        // 生成路线图
-        for (StationPlanner.ConnectionGenInfo connection : connections) {
-            int[] picStart = connection.connectStart();
-            int[] picEnd = connection.connectEnd();
-            List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 0,
-                    (x, y) -> {
-                        int scopeLimit = scopeLimit(x, y, picStart, picEnd);
-                        int heightLimit = builder.getHeight(x, y) < level.getSeaLevel()+2 ? 100 : 0;
-                        return scopeLimit + heightLimit;
-                    });
-            // 设置出口坐标
-            var route = routePlanner.getWay(builder, way, connection, level.getLevel());
-            putChunk(route);
+        try {
+            // 生成车站位置和连接规划
+            RoutePlanner routePlanner = new RoutePlanner();
+            StationPlanner stationPlanner = new StationPlanner(regionPos);
+            stations.addAll(
+                    StationPlanner.generateStation(regionPos, level.getLevel(), level.getSeed())
+                            .stream().map(Pair::getFirst).toList()
+            );
+            var connections = stationPlanner.generateConnections(level.getLevel(), level.getSeed());
+            // 生成路线图
+            for (StationPlanner.ConnectionGenInfo connection : connections) {
+                int[] picStart = connection.connectStart();
+                int[] picEnd = connection.connectEnd();
+                List<int[]> way = AStarPathfinder.findPath(builder, picStart, Set.of(picEnd), regionPos, 0,
+                        (x, y) -> {
+                            int scopeLimit = scopeLimit(x, y, picStart, picEnd);
+                            int heightLimit = builder.getHeight(x, y) < level.getSeaLevel()+2 ? 100 : 0;
+                            return scopeLimit + heightLimit;
+                        });
+                // 设置出口坐标
+                var route = routePlanner.getWay(builder, way, connection, level.getLevel());
+                putChunk(route);
+            }
+        } catch (Exception e) {
+            Tongdarailway.LOGGER.error("Err in gen route: ", e);
         }
     }
 
@@ -69,6 +74,8 @@ public class RailwayMap {
      * @param route 路径
      */
     private void putChunk(RoutePlanner.ResultWay route) {
+        if (route == null)
+            return;
         for (CurveRoute.CurveSegment segment : route.way().getSegments()) {
             for (Vec3 p : segment.rasterize(16, 5)) {
                 int cx = (int) Math.floor(p.x);

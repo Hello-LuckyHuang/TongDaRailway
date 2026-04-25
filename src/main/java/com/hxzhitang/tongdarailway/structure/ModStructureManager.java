@@ -14,6 +14,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.world.level.block.Rotation;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
@@ -110,10 +111,22 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
                         }
                     if (temType.equals("station")) {
                         StationTemplate template = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL);
-                        if (template.getExitCount() == 4)
+                        StationTemplate template90 = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_90);
+                        StationTemplate template180 = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_180);
+                        StationTemplate template270 = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL, Rotation.COUNTERCLOCKWISE_90);
+
+                        if (template.getExitCount() == 4) {
                             station4.add(template, id, tagArray);
-                        else if (template.getExitCount() == 2)
+                            station4.add(template90, id+90, tagArray);
+                            station4.add(template180, id+180, tagArray);
+                            station4.add(template270, id+270, tagArray);
+                        }
+                        else if (template.getExitCount() == 2) {
                             station2.add(template, id, tagArray);
+                            station2.add(template90, id+90, tagArray);
+                            station2.add(template180, id+180, tagArray);
+                            station2.add(template270, id+270, tagArray);
+                        }
                         else
                             Tongdarailway.LOGGER.error("Invalid StationTemplate: {}", location.getPath());
                     } else if (temType.equals("roadbed")) {
