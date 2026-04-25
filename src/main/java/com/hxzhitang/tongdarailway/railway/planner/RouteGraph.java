@@ -40,7 +40,7 @@ public final class RouteGraph {
      * @param maxZ            region maximum Z
      * @param n               sample count
      * @param seed            seed used to randomize the Hammersley sequence
-     * @param minAngleRadians minimum angle between adjacent radial edges, in radians
+     * @param minAngleDegrees minimum angle between adjacent radial edges, in degrees
      * @param maxDegree       maximum allowed degree per node
      * @param pointFilter     callback used to keep or remove sampled points
      * @return nodes containing own coordinate and all connected coordinates
@@ -52,10 +52,11 @@ public final class RouteGraph {
             double maxZ,
             int n,
             long seed,
-            double minAngleRadians,
+            double minAngleDegrees,
             int maxDegree,
             PointFilter pointFilter
     ) {
+        double minAngleRadians = Math.toRadians(minAngleDegrees);
         validate(minX, maxX, minZ, maxZ, n, minAngleRadians, maxDegree);
         if (pointFilter == null) {
             throw new IllegalArgumentException("pointFilter must not be null.");
@@ -86,8 +87,8 @@ public final class RouteGraph {
         double maxX = 100.0;
         double minZ = 0.0;
         double maxZ = 100.0;
-        int n = 50;
-        long seed = 1L;
+        int n = 6;
+        long seed = 133L;
         double minAngleDegrees = 25.0;
         int maxDegree = 5;
 
@@ -114,7 +115,7 @@ public final class RouteGraph {
                 maxZ,
                 n,
                 seed,
-                Math.toRadians(minAngleDegrees),
+                minAngleDegrees,
                 maxDegree,
                 randomFilter);
         for (NodeData node : nodes) {

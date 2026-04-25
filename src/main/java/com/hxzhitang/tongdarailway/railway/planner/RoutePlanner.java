@@ -54,7 +54,7 @@ public class RoutePlanner {
         //卷积平滑 保持首末点不变
         int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = ((max - min) / 2) + 50;
+        int framed2 = ((max - min) / 6);
 
         if (adPath.size() > framed2*2 && framed2*2 >= 3) {
             // 平滑起末
@@ -94,6 +94,8 @@ public class RoutePlanner {
             }
             adPath1.add(adPath.getLast());
             adPath = adPath1;
+        } else {
+            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disable", adPath.size());
         }
 
         return adPath.stream()
@@ -128,7 +130,13 @@ public class RoutePlanner {
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
-        result.addLine(con.start(), path1.getFirst());
+        Vec3 pA = con.start().add(con.startDir().scale(30));
+        path1.addFirst(pA);
+
+        Vec3 pB = con.end().add(con.endDir().scale(30));
+        path1.addLast(pB);
+
+        result.addLine(con.start(), pA);
 
         Vec3 startDir = con.startDir();
         Vec3 endDir;
@@ -178,7 +186,7 @@ public class RoutePlanner {
         }
 
         // 终点车站连接
-        result.addLine(path1.getLast(), con.end());
+        result.addLine(pB, con.end());
 
         return result;
     }

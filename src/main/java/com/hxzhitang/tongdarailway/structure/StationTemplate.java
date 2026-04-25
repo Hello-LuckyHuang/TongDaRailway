@@ -1,8 +1,10 @@
 package com.hxzhitang.tongdarailway.structure;
 
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
+import com.hxzhitang.tongdarailway.util.MyMth;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.*;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
@@ -250,11 +252,16 @@ public class StationTemplate extends ModTemplate {
             Vec3 pos = exitPos.getCenter().multiply(1,0,1);
             Vec3 t = target.multiply(1,0,1);
             Vec3 a = t.subtract(pos).normalize();
-            double d = a.dot(dir) * 30;
-            d = Math.max(d, 0) + 30;
-            Vec3 end = dir.scale(d);
 
-            return new int[]{exitPos.getX() + (int) end.x, exitPos.getZ() + (int) end.z, exitPos.getY()};
+            Vec3 vert = new Vec3(0, 1, 0);
+            Vec3 vb = dir.cross(vert).normalize();
+
+            int d = (int) (a.dot(vb) * 30);
+            Vec3 end = dir.scale(65).add(vb.scale(d));
+
+            Vec3i push = MyMth.myCeil(end);
+
+            return new int[]{exitPos.getX() + push.getX(), exitPos.getZ() + push.getZ(), exitPos.getY()};
         }
     }
 }

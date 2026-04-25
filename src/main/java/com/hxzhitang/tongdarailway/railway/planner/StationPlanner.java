@@ -6,6 +6,7 @@ import com.hxzhitang.tongdarailway.structure.ModStructureManager;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.QuartPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -19,6 +20,18 @@ import net.neoforged.neoforge.common.Tags;
 import java.util.*;
 
 import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
+
+/**
+ * 路线图大致生成步骤：
+ * 1. 使用低差异序列在区域内随机均匀的选择站点
+ * 2. 去除不合法的选点（如海洋上的点）
+ * 3. 将站点连接成为德劳内三角网
+ * 4. 删边，使得圆周上的相邻边在特定角度以上
+ * 5. 删边，使得节点的最大度为4。根据节点度数分配对应出口的车站
+ * 6. 返回节点和它所连接的所有节点
+ * 7. 通过匈牙利匹配为每个车站出口匹配一条边
+ * 8. 根据匹配结果生成连接
+ */
 
 // 站点规划 连接规划
 public class StationPlanner {
@@ -42,16 +55,16 @@ public class StationPlanner {
         List<Pair<StationGenInfo, List<BlockPos>>> result = new ArrayList<>();
 
         var nodes = RouteGraph.generate(
-                regionPos.getBasePos().x + 100,
-                regionPos.getBasePos().x + regionPos.getLength() - 100,
-                regionPos.getBasePos().y + 100,
-                regionPos.getBasePos().y + regionPos.getLength() - 100,
-                6,
+                regionPos.getBasePos().x + 60,
+                regionPos.getBasePos().x + regionPos.getLength() - 60,
+                regionPos.getBasePos().y + 60,
+                regionPos.getBasePos().y + regionPos.getLength() - 60,
+                12,
                 regionSeed,
                 70,
                 4,
                 (x, z) -> {
-                    var biome = gen.getBiomeSource().getNoiseBiome((int) x, 65, (int) z, randomState.sampler());
+                    var biome = gen.getBiomeSource().getNoiseBiome(QuartPos.fromBlock((int) x), QuartPos.fromBlock(65), QuartPos.fromBlock((int) z), randomState.sampler());
                     return !biome.is(Tags.Biomes.IS_OCEAN);
                 }
         );
@@ -62,7 +75,7 @@ public class StationPlanner {
             int y = gen.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE, level, cfg);
             // 使得站点的高度在一定区域内最小
             int miny = 2550;
-            int h = miny;
+            int h = y;
             for (int ix = -2; ix < 3; ix++) {
                 for (int iz = -2; iz < 3; iz++) {
                     int ox = ix * 32 + x;
@@ -71,13 +84,15 @@ public class StationPlanner {
                     miny = Math.min(miny, ty);
                 }
             }
+            if (y - miny > 20)
+                h = miny;
             // 确保站点高度在 seaLevel ~ seaLevel + 增量
             h = Math.max(h, level.getSeaLevel());
             h = Math.min(h, level.getSeaLevel() + HEIGHT_MAX_INCREMENT);
             node.setPointY(h);
 
             // 根据高度决定生成地上还是地下车站
-            int exitNum = node.connected.size() >= 4 ? 4 : 2;
+            int exitNum = node.connected.size() >= 3 ? 4 : 2;
             StationTemplate station;
             if (h < y - 10) {
                 station = ModStructureManager.getRandomUnderGroundStation(regionSeed, exitNum);
@@ -115,7 +130,8 @@ public class StationPlanner {
             }
 
             var tpos = station.placePos;
-            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos);
+            int exitnum = matching.size();
+            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum);
         }
 
         connect.forEach((id, con) -> {
