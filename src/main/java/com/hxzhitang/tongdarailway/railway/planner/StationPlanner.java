@@ -139,9 +139,9 @@ public class StationPlanner {
                 var exitA = con.getFirst();
                 var exitB = con.getLast();
                 result.add(new ConnectionGenInfo(
-                        exitA.exitPos().getCenter(),
+                        Vec3.atLowerCornerOf(exitA.exitPos()),
                         exitA.dir(),
-                        exitB.exitPos().getCenter(),
+                        Vec3.atLowerCornerOf(exitB.exitPos()),
                         exitB.dir(),
                         exitA.pushAway(exitB.exitPos().getCenter()),
                         exitB.pushAway(exitA.exitPos().getCenter())

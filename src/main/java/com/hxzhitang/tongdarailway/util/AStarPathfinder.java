@@ -19,7 +19,7 @@ public class AStarPathfinder {
             1.0, 1.0, 1.0, 1.0,
             1.414, 1.414, 1.414, 1.414
     };
-    private static final int PATH_STEP = 8;
+    private static final int PATH_STEP = 12;
 
     public static List<int[]> findPath(RailwayBuilder builder, int[] start, Set<int[]> end, RegionPos center, int region_l1_limit, AdditionalCostFunction additionalCostFunction) {
         if (builder == null || start == null || start.length < 2 || center == null || additionalCostFunction == null) {

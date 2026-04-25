@@ -25,7 +25,7 @@ public class RoutePlanner {
      */
     public ResultWay getWay(RailwayBuilder builder, List<int[]> way, StationPlanner.ConnectionGenInfo connectionGenInfo, ServerLevel level) {
         List<int[]> handledHeightWay = handleHeight(builder, way, level, connectionGenInfo);
-        return connectTrackNew3(handledHeightWay, connectionGenInfo);
+        return connectTrackNew4(handledHeightWay, connectionGenInfo);
     }
 
     /**
@@ -111,7 +111,7 @@ public class RoutePlanner {
      * @param path 路线的端点
      * @return 连接后的复合曲线
      */
-    private ResultWay connectTrackNew3(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
+    private ResultWay connectTrackNew4(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
         // 转换为世界坐标系
         List<Vec3> path0 = new ArrayList<>();
 
@@ -121,7 +121,7 @@ public class RoutePlanner {
         }
 
         List<Vec3> path1 = new ArrayList<>();
-        for (int i = 0; i < path0.size()-12; i+=6) {
+        for (int i = 0; i < path0.size()-7; i+=4) {
             path1.add(path0.get(i));
         }
         path1.addLast(path0.getLast());
@@ -148,15 +148,18 @@ public class RoutePlanner {
             if (i == path1.size() - 2) // 处理和终点的连接
                 endDir = con.endDir();
 
-            if (ResultWay.getConnect(BlockPos.containing(start.multiply(1,0,1)), BlockPos.containing(end.multiply(1,0,1)), startDir, endDir, false) != null) {
-                Vec3 dir = end.subtract(start).multiply(1, 0, 1).normalize();
-                double dot2 = startDir.dot(endDir.reverse());
-                double dot1 = startDir.dot(dir);
-                if (Mth.equal(dot1, 1) && Mth.equal(dot2, 1))
-                    result.addBezier(start, startDir, end.subtract(start), endDir);
-                else
-                    result.connectWay(start, end, startDir, endDir, start.y == end.y);
-            } else {
+            // 可以直线连接
+            Vec3 dir = end.subtract(start).multiply(1, 0, 1).normalize();
+            double dot2 = startDir.dot(endDir.reverse());
+            double dot1 = startDir.dot(dir);
+            if (Mth.equal(dot1, 1) && Mth.equal(dot2, 1)) {
+                result.addBezier(start, startDir, end.subtract(start), endDir);
+            }
+            // 不能直接连接
+            else if (
+                    Mth.equal(dot2, 1) ||
+                    ResultWay.getConnect(BlockPos.containing(start.multiply(1,0,1)), BlockPos.containing(end.multiply(1,0,1)), startDir, endDir, false) == null
+            ) {
                 int len = (int) (start.distanceTo(end) / 2) - 2;
                 Vec3 aPos = (start.add(startDir.scale(len)).add(end.add(endDir.scale(len)))).scale(0.5);
                 aPos = new Vec3((int) aPos.x(), (int) aPos.y(), (int) aPos.z());
@@ -168,9 +171,7 @@ public class RoutePlanner {
 
                 if (Mth.equal(dot, 1)) {
                     // 前方 直线
-                    aDir = startDir;
-                    result.addBezier(start, startDir, aPos.subtract(start), aDir.reverse());
-                    result.addBezier(aPos, aDir, end.subtract(aPos), endDir);
+                    result.addBezier(start, startDir, end.subtract(start), endDir);
                     continue;
                 } else if (dot > 0.78) {
                     // 斜前方 135度钝角
@@ -181,6 +182,10 @@ public class RoutePlanner {
                 }
                 result.connectWay(start, aPos, startDir, aDir.reverse(), maximiseTurn);
                 result.connectWay(aPos, end, aDir, endDir, maximiseTurn);
+            }
+            // 可以连接
+            else {
+                result.connectWay(start, end, startDir, endDir, start.y == end.y);
             }
             startDir = endDir.reverse();
         }

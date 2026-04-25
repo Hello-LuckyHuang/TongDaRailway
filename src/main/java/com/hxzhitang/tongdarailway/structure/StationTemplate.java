@@ -249,9 +249,9 @@ public class StationTemplate extends ModTemplate {
     ) {
         // ÍÆÔ¶
         public int[] pushAway(Vec3 target) {
-            Vec3 pos = exitPos.getCenter().multiply(1,0,1);
+            Vec3 ep = exitPos.getCenter().multiply(1,0,1);
             Vec3 t = target.multiply(1,0,1);
-            Vec3 a = t.subtract(pos).normalize();
+            Vec3 a = t.subtract(ep).normalize();
 
             Vec3 vert = new Vec3(0, 1, 0);
             Vec3 vb = dir.cross(vert).normalize();
@@ -259,9 +259,10 @@ public class StationTemplate extends ModTemplate {
             int d = (int) (a.dot(vb) * 30);
             Vec3 end = dir.scale(65).add(vb.scale(d));
 
-            Vec3i push = MyMth.myCeil(end);
+            Vec3 pos = Vec3.atCenterOf(exitPos);
+            Vec3 start = pos.add(end);
 
-            return new int[]{exitPos.getX() + push.getX(), exitPos.getZ() + push.getZ(), exitPos.getY()};
+            return new int[]{(int) start.x, (int) start.z, exitPos.getY()};
         }
     }
 }
