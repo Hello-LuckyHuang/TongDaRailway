@@ -256,7 +256,8 @@ public class StationTemplate extends ModTemplate {
             Vec3 vert = new Vec3(0, 1, 0);
             Vec3 vb = dir.cross(vert).normalize();
 
-            int d = (int) (a.dot(vb) * 30);
+            int d = (int) (a.dot(vb) * 45);
+            d = Math.abs(d) < 7 ? 0 : d;
             Vec3 end = dir.scale(65).add(vb.scale(d));
 
             Vec3 pos = Vec3.atCenterOf(exitPos);

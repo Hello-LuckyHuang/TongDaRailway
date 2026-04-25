@@ -19,6 +19,7 @@ import net.neoforged.neoforge.common.Tags;
 
 import java.util.*;
 
+import static com.hxzhitang.tongdarailway.Tongdarailway.AREA_DROP;
 import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
 
 /**
@@ -54,12 +55,21 @@ public class StationPlanner {
         long regionSeed = seed + regionPos.hashCode();
         List<Pair<StationGenInfo, List<BlockPos>>> result = new ArrayList<>();
 
+        // 判定区域是否生成路网
+        if (Math.abs(regionPos.x()) > 100 || Math.abs(regionPos.z()) > 100) {
+            // 过远不生成
+            return result;
+        }
+        if (new Random(regionSeed).nextDouble() < AREA_DROP) {
+            return result;
+        }
+
         var nodes = RouteGraph.generate(
                 regionPos.getBasePos().x + 60,
                 regionPos.getBasePos().x + regionPos.getLength() - 60,
                 regionPos.getBasePos().y + 60,
                 regionPos.getBasePos().y + regionPos.getLength() - 60,
-                12,
+                new Random(regionSeed).nextInt(8, 13),
                 regionSeed,
                 70,
                 4,
@@ -125,7 +135,7 @@ public class StationPlanner {
             for (Pair<StationTemplate.Exit, BlockPos> exitBlockPosPair : matching) {
                 var exit = exitBlockPosPair.getFirst();
                 var con = exitBlockPosPair.getSecond();
-                int id = station.placePos.getX()+station.placePos.getZ()+con.getX()+con.getZ();
+                int id = station.placePos.getX()*3+station.placePos.getZ()*7+con.getX()*3+con.getZ()*7;
                 connect.computeIfAbsent(id, k -> new ArrayList<>()).add(exit);
             }
 

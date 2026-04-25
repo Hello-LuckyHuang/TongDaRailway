@@ -54,23 +54,26 @@ public class RoutePlanner {
         //卷积平滑 保持首末点不变
         int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = ((max - min) / 6);
+        int framed2 = Math.max(((max - min) / 6), 20);
+        framed2 = adPath.size() > framed2*2 ? framed2 : 20;
 
-        if (adPath.size() > framed2*2 && framed2*2 >= 3) {
-            // 平滑起末
-            double fh = con.connectStart()[2];
-            double lh = con.connectEnd()[2];
-            if (adPath.size() > framed2*2+20) {
-                for (int i = 1; i < framed2+10; i++) {
-                    double t = (double) i / (framed2+10);
-                    double sh = adPath.get(i)[2];
-                    double eh = adPath.get(adPath.size() - 1 - i)[2];
+        // 平滑起末
+        double fh = con.connectStart()[2];
+        double lh = con.connectEnd()[2];
+        if (adPath.size() > 40) {
+            for (int i = 1; i < 20; i++) {
+                double t = (double) i / 20.0;
+                double sh = adPath.get(i)[2];
+                double eh = adPath.get(adPath.size() - 1 - i)[2];
 
-                    adPath.get(i)[2] = fh * (1 - t) + sh * t;
-                    adPath.get(adPath.size() - 1 - i)[2] = lh * (1 - t) + eh * t;
-                }
+                adPath.get(i)[2] = fh * (1 - t) + sh * t;
+                adPath.get(adPath.size() - 1 - i)[2] = lh * (1 - t) + eh * t;
             }
+        } else {
+            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disable", adPath.size());
+        }
 
+        if (adPath.size() > framed2*2) {
             // 平滑中间
             List<double[]> adPath1 = new ArrayList<>();
             adPath1.add(adPath.getFirst());

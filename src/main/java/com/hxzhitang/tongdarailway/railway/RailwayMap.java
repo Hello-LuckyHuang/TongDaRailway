@@ -70,7 +70,7 @@ public class RailwayMap {
      */
     private void putChunk(RoutePlanner.ResultWay route) {
         for (CurveRoute.CurveSegment segment : route.way().getSegments()) {
-            for (Vec3 p : segment.rasterize(16, 3)) {
+            for (Vec3 p : segment.rasterize(16, 5)) {
                 int cx = (int) Math.floor(p.x);
                 int cz = (int) Math.floor(p.z);
                 if (cx >= regionPos.x()*CHUNK_GROUP_SIZE && cx < (regionPos.x()+1)*CHUNK_GROUP_SIZE && cz >= regionPos.z()*CHUNK_GROUP_SIZE && cz < (regionPos.z()+1)*CHUNK_GROUP_SIZE) {
