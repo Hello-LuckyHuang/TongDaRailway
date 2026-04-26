@@ -140,9 +140,9 @@ public class StationPlanner {
                 connect.computeIfAbsent(id, k -> new ArrayList<>()).add(exit);
             }
 
-            var tpos = station.placePos;
-            int exitnum = matching.size();
-            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}, rotation {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum, station.stationTemplate.rotation);
+//            var tpos = station.placePos;
+//            int exitnum = matching.size();
+//            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}, rotation {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum, station.stationTemplate.rotation);
         }
 
         connect.forEach((id, con) -> {
