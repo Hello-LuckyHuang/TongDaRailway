@@ -52,7 +52,7 @@ public class StationPlanner {
                 level.getSeed()
         );
 
-        long regionSeed = seed + regionPos.hashCode();
+        long regionSeed = seed + regionPos.hashCode()*53217L + 75_512;
         List<Pair<StationGenInfo, List<BlockPos>>> result = new ArrayList<>();
 
         // 判定区域是否生成路网
