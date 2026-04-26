@@ -96,7 +96,7 @@ public class RailwayMap {
     public static int scopeLimit(int x, int z, int[] picStart, int[] picEnd) {
         // 限制寻路区域
         int maxCost = 10000; // 区域外消耗
-        int A = 120;  // 限制区域最大宽度
+        int A = 450;  // 限制区域最大宽度
 
         double length = new Vec2(picEnd[0]-picStart[0], picEnd[1]-picStart[1]).length();
 
