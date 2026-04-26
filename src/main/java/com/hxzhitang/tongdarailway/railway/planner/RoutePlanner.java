@@ -56,24 +56,8 @@ public class RoutePlanner {
         //卷积平滑 保持首末点不变
         int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
         int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = Math.max(((max - min) / 6), 20);
-        framed2 = adPath.size() > framed2*2 ? framed2 : 20;
-
-        // 平滑起末
-        double fh = con.connectStart()[2];
-        double lh = con.connectEnd()[2];
-        if (adPath.size() > 40) {
-            for (int i = 1; i < 20; i++) {
-                double t = (double) i / 20.0;
-                double sh = adPath.get(i)[2];
-                double eh = adPath.get(adPath.size() - 1 - i)[2];
-
-                adPath.get(i)[2] = fh * (1 - t) + sh * t;
-                adPath.get(adPath.size() - 1 - i)[2] = lh * (1 - t) + eh * t;
-            }
-        } else {
-            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
-        }
+        int framed2 = (max - min) / 6;
+        framed2 = adPath.size() > framed2*2 ? framed2 : (adPath.size()-4)/2;
 
         if (adPath.size() > framed2*2) {
             // 平滑中间
@@ -99,6 +83,24 @@ public class RoutePlanner {
             }
             adPath1.add(adPath.getLast());
             adPath = adPath1;
+        } else {
+            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
+        }
+
+        // 平滑起末
+        framed2 = 40;
+        framed2 = adPath.size() > framed2*2 ? framed2 : (adPath.size()-4)/2;
+        double fh = con.connectStart()[2];
+        double lh = con.connectEnd()[2];
+        if (adPath.size() > framed2*2) {
+            for (int i = 1; i < framed2; i++) {
+                double t = i / (double) (framed2);
+                double sh = adPath.get(i)[2];
+                double eh = adPath.get(adPath.size() - 1 - i)[2];
+
+                adPath.get(i)[2] = fh * (1 - t) + sh * t;
+                adPath.get(adPath.size() - 1 - i)[2] = lh * (1 - t) + eh * t;
+            }
         } else {
             Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
         }

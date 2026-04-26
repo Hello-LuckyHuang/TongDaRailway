@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.hxzhitang.tongdarailway.Tongdarailway;
-import com.hxzhitang.tongdarailway.util.MyRandom;
 import com.hxzhitang.tongdarailway.util.RandomPool;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
@@ -35,11 +34,7 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
     public static final RandomPool<StationTemplate> station2 = new RandomPool<>();
 
     // 路面路基
-    public static final Map<Integer, RailwayTemplate> ground = new HashMap<>();
-    // 隧道
-    public static final Map<Integer, RailwayTemplate> tunnel = new HashMap<>();
-    // 桥梁
-    public static final Map<Integer, RailwayTemplate> bridge = new HashMap<>();
+    public static final RandomPool<RailwayTemplate> roadbed = new RandomPool<>();
 
     @SubscribeEvent
     public static void addReloadListeners(AddReloadListenerEvent event) {
@@ -111,9 +106,9 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
                         }
                     if (temType.equals("station")) {
                         StationTemplate template = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL);
-                        StationTemplate template90 = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_90);
-                        StationTemplate template180 = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_180);
-                        StationTemplate template270 = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL, Rotation.COUNTERCLOCKWISE_90);
+                        StationTemplate template90 = new StationTemplate(rootTag, heightOffset, id+90, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_90);
+                        StationTemplate template180 = new StationTemplate(rootTag, heightOffset, id+180, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_180);
+                        StationTemplate template270 = new StationTemplate(rootTag, heightOffset, id+270, StationTemplate.StationType.NORMAL, Rotation.COUNTERCLOCKWISE_90);
 
                         if (template.getExitCount() == 4) {
                             station4.add(template, id, tagArray);
@@ -131,11 +126,7 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
                             Tongdarailway.LOGGER.error("Invalid StationTemplate: {}", location.getPath());
                     } else if (temType.equals("roadbed")) {
                         RailwayTemplate template = new RailwayTemplate(rootTag, heightOffset);
-                        switch (type) {
-                            case "ground" -> ground.put(id, template);
-                            case "tunnel" -> tunnel.put(id, template);
-                            case "bridge" -> bridge.put(id, template);
-                        }
+                        roadbed.add(template, id, tagArray);
                     }
                 }
             } catch (Exception e) {
@@ -154,30 +145,21 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
     public static StationTemplate getRandomUnderGroundStation(long seed, int exitNum, String... tags) {
         String type = "underground";
         RandomPool<StationTemplate> pool = exitNum == 2 ? station2 : station4;
-        return pool.get(75_457 + seed*10000, type, tags);
+        return pool.get(75_1050 + seed*10000, type, tags);
     }
 
-    public static RailwayTemplate getRandomGround(long seed) {
-        if (ground.isEmpty()) {
-            return null;
-        }
-
-        return MyRandom.getRandomValueFromMap(ground, 84_270 + seed*10000);
+    public static RailwayTemplate getRandomGround(long seed, String... tags) {
+        String type = "ground";
+        return roadbed.get(84_270 + seed*10000, type, tags);
     }
 
-    public static RailwayTemplate getRandomTunnel(long seed) {
-        if (tunnel.isEmpty()) {
-            return null;
-        }
-
-        return MyRandom.getRandomValueFromMap(tunnel, 71_1553 + seed*10000);
+    public static RailwayTemplate getRandomTunnel(long seed, String... tags) {
+        String type = "tunnel";
+        return roadbed.get(90_8006 + seed*10000, type, tags);
     }
 
-    public static RailwayTemplate getRandomBridge(long seed) {
-        if (bridge.isEmpty()) {
-            return null;
-        }
-
-        return MyRandom.getRandomValueFromMap(bridge, 90_318 + seed*10000);
+    public static RailwayTemplate getRandomBridge(long seed, String... tags) {
+        String type = "bridge";
+        return roadbed.get(71_1554 + seed*10000, type, tags);
     }
 }

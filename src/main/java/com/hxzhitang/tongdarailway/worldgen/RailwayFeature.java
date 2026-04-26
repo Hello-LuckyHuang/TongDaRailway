@@ -22,10 +22,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.FeaturePlaceContext;
 import net.minecraft.world.phys.Vec3;
@@ -43,7 +45,6 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         ChunkPos cPos = new ChunkPos(ctx.origin());
         RegionPos regionPos = RegionPos.regionPosFromChunkPos(cPos);
         WorldGenLevel world = ctx.level();
-        ChunkAccess chunk = world.getChunk(cPos.x, cPos.z);
 
         RailwayBuilder builder = RailwayBuilder.getInstance(ctx.level().getSeed());
         if (builder == null) return false;
@@ -54,7 +55,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         // 根据路线生成路基
         if (builder.regionRailways.containsKey(regionPos)) {
             if (railwayMap.routeMap.containsKey(cPos)) {
-                placeRoadbed(railwayMap, cPos, chunk, world);
+                placeRoadbed(railwayMap, cPos, world);
             }
         }
 
@@ -66,7 +67,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
             var center = pos.getCenter();
 
             if (station.getBoundChunks(center).contains(cPos)) {
-                placeStation(cPos, center, station, chunk);
+                placeStation(cPos, center, station, world);
             }
         }
 
@@ -148,7 +149,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         }
     }
 
-    private static void placeStation(ChunkPos cPos, Vec3 center, StationTemplate station, ChunkAccess chunk) {
+    private static void placeStation(ChunkPos cPos, Vec3 center, StationTemplate station, WorldGenLevel world) {
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 var test = new Vec3(cPos.x*16+x, center.y + 1, cPos.z*16+z);
@@ -166,7 +167,8 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                             continue;
                         }
                     }
-                    chunk.setBlockState(new BlockPos(x, y, z), blockState, true);
+                    BlockPos blockPos = new BlockPos(cPos.getMinBlockX()+x, y, cPos.getMinBlockZ()+z);
+                    world.setBlock(blockPos, blockState, 3);
                 }
             }
         }
@@ -194,7 +196,10 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         return new Vec3(offX, 0, offZ);
     }
 
-    private static void placeRoadbed(RailwayMap railwayMap, ChunkPos cPos, ChunkAccess chunk, WorldGenLevel world) {
+    private static void placeRoadbed(RailwayMap railwayMap, ChunkPos cPos, WorldGenLevel world) {
+        ChunkGenerator gen = world.getLevel().getChunkSource().getGenerator();
+        RandomState cfg = world.getLevel().getChunkSource().randomState();
+
         var routes = railwayMap.routeMap.get(cPos);
         for (CurveRoute route : routes) {
             int seed = route.getSegments().size();
@@ -251,8 +256,8 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         // 根据标架下坐标,从模板结构找到对应方块,并且放置
                         BlockState blockState = structureTemplate.getBlockState(localX, localY, localZ);
                         if (blockState != null) {
-                            BlockPos blockPos = new BlockPos(x, y, z);
-                            chunk.setBlockState(blockPos, blockState, true);
+                            BlockPos blockPos = new BlockPos(cPos.getMinBlockX()+x, y, cPos.getMinBlockZ()+z);
+                            placeAndUpdate(world, blockPos, blockState);
                         }
                     }
                     // 向下填充地基直到遇到支撑方块(隧道不考虑向下填充地基)
@@ -262,9 +267,9 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                     for (int oy = structureTemplate.getLowerBound() - 1; oy > structureTemplate.getLowerBound() - 100; oy--) {
                         int y = oy + (int) nearest0.y;
 
-                        BlockPos blockPos = new BlockPos(x, y, z);
+                        BlockPos blockPos = new BlockPos(cPos.getMinBlockX()+x, y, cPos.getMinBlockZ()+z);
 
-                        if (chunk.getBlockState(blockPos).isFaceSturdy(world, blockPos, Direction.UP)) {
+                        if (world.getBlockState(blockPos).isFaceSturdy(world, blockPos, Direction.UP)) {
                             break;
                         }
 
@@ -276,12 +281,24 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
 
                         BlockState blockState = structureTemplate.getBlockState(localX, localY, localZ);
                         if (blockState != null) {
-                            chunk.setBlockState(blockPos, blockState, true);
+                            placeAndUpdate(world, blockPos, blockState);
                         }
                     }
                 }
             }
 
+        }
+    }
+
+    private static void placeAndUpdate(WorldGenLevel world, BlockPos blockPos, BlockState blockState) {
+        world.setBlock(blockPos, blockState, 3);
+        BlockState updatedState = Block.updateFromNeighbourShapes(world.getBlockState(blockPos), world, blockPos);
+        world.setBlock(blockPos, updatedState, 3);
+
+        for (Direction direction : Direction.values()) {
+            BlockPos neighborPos = blockPos.relative(direction);
+            BlockState neighborState = Block.updateFromNeighbourShapes(world.getBlockState(neighborPos), world, neighborPos);
+            world.setBlock(neighborPos, neighborState, 3);
         }
     }
 }

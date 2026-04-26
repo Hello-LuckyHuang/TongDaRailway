@@ -76,56 +76,6 @@ public final class RouteGraph {
         return toNodeData(points, graph);
     }
 
-    /**
-     * Example:
-     * java HammersleyDelaunayGraph 0 100 0 100 50 12345 25 5
-     *
-     * Arguments are minX maxX minZ maxZ n seed minAngleDegrees maxDegree.
-     */
-    public static void main000(String[] args) {
-        double minX = 0.0;
-        double maxX = 100.0;
-        double minZ = 0.0;
-        double maxZ = 100.0;
-        int n = 6;
-        long seed = 133L;
-        double minAngleDegrees = 25.0;
-        int maxDegree = 5;
-
-        if (args.length == 8) {
-            minX = Double.parseDouble(args[0]);
-            maxX = Double.parseDouble(args[1]);
-            minZ = Double.parseDouble(args[2]);
-            maxZ = Double.parseDouble(args[3]);
-            n = Integer.parseInt(args[4]);
-            seed = Long.parseLong(args[5]);
-            minAngleDegrees = Double.parseDouble(args[6]);
-            maxDegree = Integer.parseInt(args[7]);
-        } else if (args.length != 0) {
-            throw new IllegalArgumentException(
-                    "Usage: java HammersleyDelaunayGraph minX maxX minZ maxZ n seed minAngleDegrees maxDegree");
-        }
-
-        Random random = new Random(seed ^ 0x9E3779B97F4A7C15L);
-        PointFilter randomFilter = (x, z) -> random.nextBoolean();
-        List<NodeData> nodes = generate(
-                minX,
-                maxX,
-                minZ,
-                maxZ,
-                n,
-                seed,
-                minAngleDegrees,
-                maxDegree,
-                randomFilter);
-        for (NodeData node : nodes) {
-            System.out.println("node: " + node.point);
-            for (Vec3 connected : node.connected) {
-                System.out.println("  connected: " + connected);
-            }
-        }
-    }
-
     private static void validate(
             double minX,
             double maxX,
