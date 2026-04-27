@@ -4,6 +4,7 @@
   "package": "com.hxzhitang.tongdarailway.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "ChunkMapRegionRuleGateMixin",
     "LevelChunkMixin",
     "NoiseBasedChunkGeneratorMixin",
     "StructureMixin",

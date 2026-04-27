@@ -50,8 +50,9 @@ public class StructureMixin {
         RailwayBuilder builder = RailwayBuilder.getInstance(context.seed());
         if (builder == null) return false;
 
-        RailwayMap railwayMap = builder.regionRailways.get(RegionPos.regionPosFromWorldPos(pos.getX(), pos.getZ()));
-        if (railwayMap == null) return false;
+        RegionPos regionPos = RegionPos.regionPosFromWorldPos(pos.getX(), pos.getZ());
+        if (builder.getMapIfReady(regionPos).isEmpty()) return false;
+        RailwayMap railwayMap = builder.getMapIfReady(regionPos).get();
 
         Set<CurveRoute> routes = new HashSet<>();
         railwayMap.routeMap.forEach(((chunkPos, curveRoutes) -> {

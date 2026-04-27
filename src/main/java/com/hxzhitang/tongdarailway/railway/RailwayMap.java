@@ -10,6 +10,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec2;
@@ -39,17 +40,17 @@ public class RailwayMap {
     }
 
     // 规划铁路路线方法
-    public void startPlanningRoutes(WorldGenRegion level) {
+    public void startPlanningRoutes(ServerLevel level) {
         var builder = RailwayBuilder.getInstance(level.getSeed());
         try {
             // 生成车站位置和连接规划
             RoutePlanner routePlanner = new RoutePlanner();
             StationPlanner stationPlanner = new StationPlanner(regionPos);
             stations.addAll(
-                    StationPlanner.generateStation(regionPos, level.getLevel(), level.getSeed())
+                    StationPlanner.generateStation(regionPos, level, level.getSeed())
                             .stream().map(Pair::getFirst).toList()
             );
-            var connections = stationPlanner.generateConnections(level.getLevel(), level.getSeed());
+            var connections = stationPlanner.generateConnections(level, level.getSeed());
             // 生成路线图
             for (StationPlanner.ConnectionGenInfo connection : connections) {
                 int[] picStart = connection.connectStart();
@@ -61,7 +62,7 @@ public class RailwayMap {
                             return scopeLimit + heightLimit;
                         });
                 // 设置出口坐标
-                var route = routePlanner.getWay(builder, way, connection, level.getLevel());
+                var route = routePlanner.getWay(builder, way, connection, level);
                 putChunk(route);
             }
         } catch (Exception e) {

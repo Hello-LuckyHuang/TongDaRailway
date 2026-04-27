@@ -49,8 +49,8 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         RailwayBuilder builder = RailwayBuilder.getInstance(ctx.level().getSeed());
         if (builder == null) return false;
 
-        RailwayMap railwayMap = builder.regionRailways.get(regionPos);
-        if (railwayMap == null) return false;
+        if (builder.getMapIfReady(regionPos).isEmpty()) return false;
+        RailwayMap railwayMap = builder.getMapIfReady(regionPos).get();
 
         // 根据路线生成路基
         if (builder.regionRailways.containsKey(regionPos)) {
