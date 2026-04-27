@@ -93,28 +93,50 @@ public class RailwayMap {
         }
     }
 
-    public static int scopeLimit(int x, int z, int[] picStart, int[] picEnd) {
+    public static int scopeLimit(int x, int z, int[] start, int[] end) {
+        final float a = 65;
         // 限制寻路区域
-        int maxCost = 10000; // 区域外消耗
-        int A = 450;  // 限制区域最大宽度
+        final int maxCost = 10000; // 区域外消耗
 
-        double length = new Vec2(picEnd[0]-picStart[0], picEnd[1]-picStart[1]).length();
+        // 计算边长 L 和 AB 方向的单位向量 u
+        float ABx = end[0] - start[0];
+        float ABz = end[1] - start[1];
+        float L = (float) Math.sqrt(ABx * ABx + ABz * ABz);
+        if (L == 0) return maxCost; // 退化成点
 
-        Vec3 p = new Vec3(x-picStart[0], 0, z-picStart[1]);
+        float ux = ABx / L;
+        float uz = ABz / L;
 
-        Vec3 va = new Vec3(picEnd[0]-picStart[0], 0, picEnd[1]-picStart[1]).normalize();
-        Vec3 vert = new Vec3(0, 1, 0);
-        Vec3 vb = va.cross(vert);
+        // 计算垂直于 AB 方向的单位向量 v（旋转 a 度）
+        // 使用 Vec3 的 yRot 方法绕 y 轴旋转
+        Vec3 uVec = new Vec3(ux, 0, uz);
+        // 绕 y 轴旋转 a 度得到 AD 方向
+        Vec3 vVec = uVec.yRot((float) Math.toRadians(a));
 
-        double a = p.dot(va) / length;
-        if (a < 0 || a > 1)
-            return maxCost;
+        // 四个顶点（按照逆时针顺序）
+        float Ax = start[0], Az = start[1];
+        float Bx = end[0],   Bz = end[1];
+        float Cx = (float) (Bx + vVec.x * L);
+        float Cz = (float) (Bz + vVec.z * L);
+        float Dx = (float) (Ax + vVec.x * L);
+        float Dz = (float) (Az + vVec.z * L);
 
-        double b = Math.abs(p.dot(vb));
-        double py = A * Math.sin(Math.PI * a);
+        // 对四条边做叉积判断（逆时针排列，内部侧叉积 >= 0）
+        // 边 AB
+        float cross1 = (Bx - Ax) * (z - Az) - (Bz - Az) * (x - Ax);
+        if (cross1 < 0) return maxCost;
 
-        if (b > py)
-            return maxCost;
+        // 边 BC
+        float cross2 = (Cx - Bx) * (z - Bz) - (Cz - Bz) * (x - Bx);
+        if (cross2 < 0) return maxCost;
+
+        // 边 CD
+        float cross3 = (Dx - Cx) * (z - Cz) - (Dz - Cz) * (x - Cx);
+        if (cross3 < 0) return maxCost;
+
+        // 边 DA
+        float cross4 = (Ax - Dx) * (z - Dz) - (Az - Dz) * (x - Dx);
+        if (cross4 < 0) return maxCost;
 
         return 0;
     }

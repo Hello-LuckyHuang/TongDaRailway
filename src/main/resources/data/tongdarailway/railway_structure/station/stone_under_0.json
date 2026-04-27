@@ -1,0 +1,7 @@
+{
+  "class": "station",
+  "type": "underground",
+  "template": "tongdarailway:station/underground/stone_under_0",
+  "height_offset": 0,
+  "tags": ["default"]
+}

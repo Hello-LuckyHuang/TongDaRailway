@@ -54,6 +54,20 @@ public abstract class NoiseBasedChunkGeneratorMixin {
 
     @Unique
     private static void tongDaRailway211$placeTray(ChunkPos cPos, Vec3 center, StationTemplate station, ChunkAccess chunk) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                var test = new Vec3(cPos.x*16+x, center.y + 1, cPos.z*16+z);
+                if (!station.isInVoxel(test.subtract(center).add(-0.5, -0.5, -0.5)))
+                    continue;
+                for (int oy = station.getLowerBound(); oy < station.getUpperBound(); oy++) {
+                    int y = oy + (int) center.y;
+                    var p = new Vec3(cPos.x*16+x, y, cPos.z*16+z).add(-0.5, -0.5, -0.5);
+                    if (station.isInVoxel(p.subtract(center))) {
+                        chunk.setBlockState(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState(), true);
+                    }
+                }
+            }
+        }
         Vec3 placeCenter = center.add(0, -3, 0);
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
