@@ -28,12 +28,15 @@ public abstract class NoiseBasedChunkGeneratorMixin {
         var dimensionType = level.dimensionType();
         // 只有主世界生成路
         if (dimensionType.effectsLocation().toString().equals("minecraft:overworld")) {
-            // 生成车站托盘
             RegionPos regionPos = RegionPos.regionPosFromChunkPos(chunk.getPos());
-            RailwayBuilder railwayBuilder = RailwayBuilder.getInstance(level.getSeed());
-            var optional = railwayBuilder.getMapIfReady(regionPos);
-            if (optional.isPresent()) {
-                RailwayMap railwayMap = optional.get();
+
+            RailwayBuilder railwayBuilder = RailwayBuilder.getInstance(level.getSeed(), level);
+            railwayBuilder.generateRailway(regionPos);
+
+
+            // 生成车站托盘
+            RailwayMap railwayMap = railwayBuilder.regionRailways.get(regionPos);
+            if (railwayMap != null) {
                 for (StationPlanner.StationGenInfo stationPlace : railwayMap.stations) {
                     var station = stationPlace.stationTemplate();
                     if (station == null) continue;

@@ -49,8 +49,8 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         RailwayBuilder builder = RailwayBuilder.getInstance(ctx.level().getSeed());
         if (builder == null) return false;
 
-        if (builder.getMapIfReady(regionPos).isEmpty()) return false;
-        RailwayMap railwayMap = builder.getMapIfReady(regionPos).get();
+        RailwayMap railwayMap = builder.regionRailways.get(regionPos);
+        if (railwayMap == null) return false;
 
         // 根据路线生成路基
         if (builder.regionRailways.containsKey(regionPos)) {
@@ -74,18 +74,18 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         // 放置铁轨刷怪笼
         // 也许机械动力铁轨天然厌恶生成时放置，我只能用这种愚蠢的方法了
         if (Config.useTrackSpawnerPlaceTrack && Config.generateTrackSpawner) {
-                if (builder.regionRailways.containsKey(regionPos)) {
-                    if (railwayMap.trackMap.containsKey(cPos)) {
-                        var firstInfo = railwayMap.trackMap.get(cPos).getFirst();
-                        BlockPos checkPos = firstInfo.pos().offset(0, -1, 0);
-                        if (!world.getBlockState(checkPos).is(ModBlocks.TRACK_SPAWNER.get())) {
-                            world.setBlock(checkPos, ModBlocks.TRACK_SPAWNER.get().defaultBlockState(), 3);
-                        }
-                        if (world.getBlockEntity(checkPos) instanceof TrackSpawnerBlockEntity trackSpawner) {
-                            trackSpawner.addTrackPutInfo(railwayMap.trackMap.get(cPos));
-                        }
+            if (builder.regionRailways.containsKey(regionPos)) {
+                if (railwayMap.trackMap.containsKey(cPos)) {
+                    var firstInfo = railwayMap.trackMap.get(cPos).getFirst();
+                    BlockPos checkPos = firstInfo.pos().offset(0, -1, 0);
+                    if (!world.getBlockState(checkPos).is(ModBlocks.TRACK_SPAWNER.get())) {
+                        world.setBlock(checkPos, ModBlocks.TRACK_SPAWNER.get().defaultBlockState(), 3);
+                    }
+                    if (world.getBlockEntity(checkPos) instanceof TrackSpawnerBlockEntity trackSpawner) {
+                        trackSpawner.addTrackPutInfo(railwayMap.trackMap.get(cPos));
                     }
                 }
+            }
         }
         if (!Config.useTrackSpawnerPlaceTrack) {
             // 咱就是说，能不能把文件编码改成UTF-8？IDEA一打开就是乱码
