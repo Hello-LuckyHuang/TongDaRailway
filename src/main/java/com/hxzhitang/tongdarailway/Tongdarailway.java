@@ -68,15 +68,15 @@ public class Tongdarailway {
         // Do something when the server starts
     }
 
-    @SubscribeEvent
-    public void onServerStopping(ServerStoppingEvent event) {
-        RailwayBuilder.clearAll();
-    }
-
-    @SubscribeEvent
-    public void onServerStopped(ServerStoppedEvent event) {
-        RailwayBuilder.clearAll();
-    }
+//    @SubscribeEvent
+//    public void onServerStopping(ServerStoppingEvent event) {
+//        RailwayBuilder.clearAll();
+//    }
+//
+//    @SubscribeEvent
+//    public void onServerStopped(ServerStoppedEvent event) {
+//        RailwayBuilder.clearAll();
+//    }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
     @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)

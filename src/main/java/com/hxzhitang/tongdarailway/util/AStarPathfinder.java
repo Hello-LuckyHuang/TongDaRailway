@@ -20,6 +20,8 @@ public class AStarPathfinder {
             1.414, 1.414, 1.414, 1.414
     };
     private static final int PATH_STEP = 12;
+    private static final int NO_DIRECTION = -1;
+    private static final double DIRECTION_CHANGE_COST = 15;
 
     public static List<int[]> findPath(RailwayBuilder builder, int[] start, Set<int[]> end, RegionPos center, int region_l1_limit, AdditionalCostFunction additionalCostFunction) {
         if (builder == null || start == null || start.length < 2 || center == null || additionalCostFunction == null) {
@@ -44,22 +46,21 @@ public class AStarPathfinder {
 
         PriorityQueue<Node> openSet = new PriorityQueue<>(Comparator.comparingDouble(node -> node.f));
 
-        Map<Long, Double> gScore = new HashMap<>();
-        Map<Long, Node> cameFrom = new HashMap<>();
+        Map<NodeKey, Double> gScore = new HashMap<>();
 
-        Node startNode = new Node(start[0], start[1]);
+        Node startNode = new Node(start[0], start[1], NO_DIRECTION);
         startNode.g = 0;
         startNode.h = heuristic(start, validEnds);
         startNode.f = startNode.g + startNode.h;
 
-        gScore.put(encode(start[0], start[1]), 0.0);
+        gScore.put(new NodeKey(start[0], start[1], NO_DIRECTION), 0.0);
         openSet.offer(startNode);
 
         while (!openSet.isEmpty()) {
             Node current = openSet.poll();
             int currentX = current.x;
             int currentY = current.y;
-            long currentKey = encode(currentX, currentY);
+            NodeKey currentKey = new NodeKey(currentX, currentY, current.directionIndex);
             double bestCurrentG = gScore.getOrDefault(currentKey, Double.MAX_VALUE);
 
             // Skip stale queue nodes.
@@ -69,7 +70,7 @@ public class AStarPathfinder {
 
             int[] reachedTarget = findReachedTarget(currentX, currentY, validEnds, PATH_STEP);
             if (reachedTarget != null) {
-                return reconstructPath(cameFrom, current, start, reachedTarget);
+                return reconstructPath(current, start, reachedTarget);
             }
 
             for (int i = 0; i < DIRECTIONS.length; i++) {
@@ -79,20 +80,23 @@ public class AStarPathfinder {
                 if (!isWithinRegionRange(newX, newY, center, region_l1_limit)) {
                     continue;
                 }
-                long neighborKey = encode(newX, newY);
+                NodeKey neighborKey = new NodeKey(newX, newY, i);
 
                 double movementCost = MOVEMENT_COST[i] * PATH_STEP;
+                double directionChangeCost = current.directionIndex != NO_DIRECTION && current.directionIndex != i
+                        ? DIRECTION_CHANGE_COST
+                        : 0.0;
                 double heightCost = Math.abs(builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY));
-                double tentativeG = current.g + movementCost + heightCost + additionalCostFunction.cost(currentX, currentY);
+                double tentativeG = current.g + movementCost + directionChangeCost + heightCost + additionalCostFunction.cost(currentX, currentY);
                 double oldNeighborG = gScore.getOrDefault(neighborKey, Double.MAX_VALUE);
 
                 if (tentativeG < oldNeighborG) {
-                    Node neighbor = new Node(newX, newY);
+                    Node neighbor = new Node(newX, newY, i);
                     neighbor.g = tentativeG;
                     neighbor.h = heuristic(new int[]{newX, newY}, validEnds);
                     neighbor.f = neighbor.g + neighbor.h;
+                    neighbor.parent = current;
 
-                    cameFrom.put(neighborKey, current);
                     gScore.put(neighborKey, tentativeG);
                     openSet.offer(neighbor);
                 }
@@ -131,22 +135,18 @@ public class AStarPathfinder {
         return best;
     }
 
-    private static long encode(int x, int y) {
-        return (((long) x) << 32) | (y & 0xffffffffL);
-    }
-
     private static boolean isWithinRegionRange(int wx, int wz, RegionPos center, int l1Limit) {
         RegionPos regionPos = RegionPos.regionPosFromWorldPos(wx, wz);
         int l1Dist = Math.abs(regionPos.x() - center.x()) + Math.abs(regionPos.z() - center.z());
         return l1Dist <= l1Limit;
     }
 
-    private static List<int[]> reconstructPath(Map<Long, Node> cameFrom, Node current, int[] start, int[] target) {
+    private static List<int[]> reconstructPath(Node current, int[] start, int[] target) {
         List<int[]> path = new ArrayList<>();
 
         while (current != null) {
             path.add(0, new int[]{current.x, current.y});
-            current = cameFrom.get(encode(current.x, current.y));
+            current = current.parent;
         }
 
         if (path.isEmpty() || path.get(0)[0] != start[0] || path.get(0)[1] != start[1]) {
@@ -165,10 +165,42 @@ public class AStarPathfinder {
         double g;
         double h;
         double f;
+        int directionIndex;
+        Node parent;
 
-        Node(int x, int y) {
+        Node(int x, int y, int directionIndex) {
             this.x = x;
             this.y = y;
+            this.directionIndex = directionIndex;
+        }
+    }
+
+
+    static class NodeKey {
+        int x, y;
+        int directionIndex;
+
+        NodeKey(int x, int y, int directionIndex) {
+            this.x = x;
+            this.y = y;
+            this.directionIndex = directionIndex;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof NodeKey)) {
+                return false;
+            }
+            NodeKey other = (NodeKey) obj;
+            return x == other.x && y == other.y && directionIndex == other.directionIndex;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(x, y, directionIndex);
         }
     }
 

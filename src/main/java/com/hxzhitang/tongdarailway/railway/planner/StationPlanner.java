@@ -34,6 +34,7 @@ import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
  * 8. 根据匹配结果生成连接
  */
 
+// 感谢@YiMin翊民排查的在73行的bug导致的一些不兼容!
 // 站点规划 连接规划
 public class StationPlanner {
     private final RegionPos regionPos;
@@ -46,11 +47,6 @@ public class StationPlanner {
     public static List<Pair<StationGenInfo, List<BlockPos>>> generateStation(RegionPos regionPos, ServerLevel level, long seed) {
         ChunkGenerator gen = level.getChunkSource().getGenerator();
         RandomState cfg = level.getChunkSource().randomState();
-        var randomState = RandomState.create(
-                ((NoiseBasedChunkGenerator) gen).generatorSettings().value(),
-                level.registryAccess().lookupOrThrow(Registries.NOISE),
-                level.getSeed()
-        );
 
         long regionSeed = seed + regionPos.hashCode()*53217L + 75_512;
         List<Pair<StationGenInfo, List<BlockPos>>> result = new ArrayList<>();
@@ -74,7 +70,7 @@ public class StationPlanner {
                 70,
                 4,
                 (x, z) -> {
-                    var biome = gen.getBiomeSource().getNoiseBiome(QuartPos.fromBlock((int) x), QuartPos.fromBlock(65), QuartPos.fromBlock((int) z), randomState.sampler());
+                    var biome = gen.getBiomeSource().getNoiseBiome(QuartPos.fromBlock((int) x), QuartPos.fromBlock(65), QuartPos.fromBlock((int) z), cfg.sampler());
                     return !biome.is(Tags.Biomes.IS_OCEAN);
                 }
         );
