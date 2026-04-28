@@ -5,7 +5,6 @@ import com.hxzhitang.tongdarailway.blocks.ModBlocks;
 import com.hxzhitang.tongdarailway.blocks.TrackSpawnerBlockRenderer;
 import com.hxzhitang.tongdarailway.datagen.ModDataGen;
 import com.hxzhitang.tongdarailway.event.FeatureRegistry;
-import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.neoforged.api.distmarker.Dist;
@@ -19,8 +18,6 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.slf4j.Logger;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
@@ -34,7 +31,7 @@ public class Tongdarailway {
     // Mod常量
     public static final int CHUNK_GROUP_SIZE = 256;  // 一个路线生成区域的大小
     public static final int HEIGHT_MAX_INCREMENT = 50;  // 路线生成最大高度相对于海平面的增量
-    public static final double AREA_DROP = 0.4; // 一个区域不生成路网的概率
+    public static final double AREA_DROP = 1 - Config.areaGenRailwayProbability; // 一个区域不生成路网的概率
 
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.

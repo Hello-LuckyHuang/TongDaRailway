@@ -2,21 +2,15 @@ package com.hxzhitang.tongdarailway.structure;
 
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.simibubi.create.content.contraptions.StructureTransform;
-import net.createmod.catnip.nbt.NBTProcessors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.*;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraft.world.level.chunk.HashMapPalette;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.registries.GameData;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;

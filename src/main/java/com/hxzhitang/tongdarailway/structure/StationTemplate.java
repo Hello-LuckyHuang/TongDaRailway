@@ -1,10 +1,7 @@
 package com.hxzhitang.tongdarailway.structure;
 
-import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
-import com.hxzhitang.tongdarailway.util.MyMth;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.*;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
