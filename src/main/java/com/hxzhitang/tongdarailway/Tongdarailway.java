@@ -31,7 +31,6 @@ public class Tongdarailway {
     // Mod常量
     public static final int CHUNK_GROUP_SIZE = 256;  // 一个路线生成区域的大小
     public static final int HEIGHT_MAX_INCREMENT = 50;  // 路线生成最大高度相对于海平面的增量
-    public static final double AREA_DROP = 1 - Config.areaGenRailwayProbability; // 一个区域不生成路网的概率
 
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.

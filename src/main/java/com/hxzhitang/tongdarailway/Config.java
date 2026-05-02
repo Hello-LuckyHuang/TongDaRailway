@@ -13,7 +13,7 @@ public class Config {
 
     private static final ModConfigSpec.DoubleValue AREA_GEN_RAILWAY_PROBABILITY = BUILDER
             .comment("The probability of generating a railway in a region. 0 means never generate, 1 means always generate.")
-            .defineInRange("areaGenerationRailwayProbability", 0.6, 0, 1);
+            .defineInRange("areaGenerationRailwayProbability", 0.4, 0, 1);
 
     private static final ModConfigSpec.BooleanValue ENABLE_TRACK_SPAWNER = BUILDER
             .comment("Can the track spawner work")

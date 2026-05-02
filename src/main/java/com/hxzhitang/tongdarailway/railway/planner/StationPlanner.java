@@ -1,5 +1,6 @@
 package com.hxzhitang.tongdarailway.railway.planner;
 
+import com.hxzhitang.tongdarailway.Config;
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.ModStructureManager;
@@ -17,7 +18,6 @@ import net.neoforged.neoforge.common.Tags;
 
 import java.util.*;
 
-import static com.hxzhitang.tongdarailway.Tongdarailway.AREA_DROP;
 import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
 
 /**
@@ -54,7 +54,7 @@ public class StationPlanner {
             // 过远不生成
             return result;
         }
-        if (new Random(regionSeed).nextDouble() < AREA_DROP) {
+        if (new Random(regionSeed).nextDouble() < 1 - Config.areaGenRailwayProbability) {
             return result;
         }
 
@@ -99,7 +99,7 @@ public class StationPlanner {
             int exitNum = node.connected.size() >= 3 ? 4 : 2;
             StationTemplate station;
             long stationSeed = regionSeed + x* 3L + z* 7L;
-            if (h < y - 10) {
+            if (h < y - 20) {
                 station = ModStructureManager.getRandomUnderGroundStation(stationSeed, exitNum);
             } else {
                 station = ModStructureManager.getRandomNormalStation(stationSeed, exitNum);
@@ -134,9 +134,9 @@ public class StationPlanner {
                 connect.computeIfAbsent(id, k -> new ArrayList<>()).add(exit);
             }
 
-            var tpos = station.placePos;
-            int exitnum = matching.size();
-            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}, rotation {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum, station.stationTemplate.rotation);
+//            var tpos = station.placePos;
+//            int exitnum = matching.size();
+//            Tongdarailway.LOGGER.info("====> StationPlanner: {} {} {} {}, exit {}, rotation {}", tpos.getX(), tpos.getY(), tpos.getZ(), regionPos, exitnum, station.stationTemplate.rotation);
         }
 
         connect.forEach((id, con) -> {
