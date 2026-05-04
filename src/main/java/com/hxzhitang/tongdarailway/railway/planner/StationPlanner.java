@@ -130,7 +130,7 @@ public class StationPlanner {
             for (Pair<StationTemplate.Exit, BlockPos> exitBlockPosPair : matching) {
                 var exit = exitBlockPosPair.getFirst();
                 var con = exitBlockPosPair.getSecond();
-                int id = station.placePos.getX()*3+station.placePos.getZ()*7+con.getX()*3+con.getZ()*7;
+                int id = generateLineId(station.placePos.getX(), station.placePos.getZ(), con.getX(), con.getZ());
                 connect.computeIfAbsent(id, k -> new ArrayList<>()).add(exit);
             }
 
@@ -289,6 +289,20 @@ public class StationPlanner {
         }
 
         return match;
+    }
+
+    private static int generateLineId(double x1, double y1, double x2, double y2) {
+        double A = y2 - y1;
+        double B = x1 - x2;
+        double C = x2 * y1 - x1 * y2;
+
+        if (A < 0 || (A == 0 && B < 0)) {
+            A = -A;
+            B = -B;
+            C = -C;
+        }
+
+        return String.format("(%f,%f,%f)", A, B, C).hashCode();
     }
 
     // 站点放置信息(世界坐标系)
