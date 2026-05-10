@@ -16,6 +16,7 @@ import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.CurveRoute;
 import com.mojang.serialization.Codec;
 import com.simibubi.create.AllBlocks;
+import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import com.simibubi.create.content.trains.track.*;
 import net.createmod.catnip.data.Couple;
 import net.minecraft.core.BlockPos;
@@ -193,7 +194,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         tag.putInt("z", blockPos.getZ());
 
         BlockEntity blockEntity = world.getBlockEntity(blockPos);
-        if (blockEntity != null) {
+        if (blockEntity != null && !(blockEntity instanceof KineticBlockEntity)) {
             blockEntity.loadWithComponents(tag, world.registryAccess());
             blockEntity.setChanged();
         }
