@@ -68,8 +68,12 @@ public class StationPlanner {
                 70,
                 4,
                 (x, z) -> {
-                    var biome = gen.getBiomeSource().getNoiseBiome(QuartPos.fromBlock((int) x), QuartPos.fromBlock(65), QuartPos.fromBlock((int) z), cfg.sampler());
-                    return !biome.is(Tags.Biomes.IS_OCEAN);
+                    try {
+                        var biome = gen.getBiomeSource().getNoiseBiome(QuartPos.fromBlock((int) x), QuartPos.fromBlock(65), QuartPos.fromBlock((int) z), cfg.sampler());
+                        return !biome.is(Tags.Biomes.IS_OCEAN);
+                    } catch (NullPointerException e) {
+                        return true;
+                    }
                 }
         );
 
