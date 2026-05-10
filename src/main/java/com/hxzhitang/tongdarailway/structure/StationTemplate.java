@@ -68,6 +68,18 @@ public class StationTemplate extends ModTemplate {
         return blockState;
     }
 
+    public CompoundTag getBlockEntityTag(double x, double y, double z) {
+        int originalX = (int) (x + Math.floor(getWidth() / 2.0));
+        int originalY = (int) Math.floor(y) + heightOffset;
+        int originalZ = (int) (z + Math.floor(getDepth() / 2.0));
+
+        return voxelGrid.getBlockEntityTag(originalX, originalY, originalZ);
+    }
+
+    public CompoundTag getBlockEntityTag(Vec3 pos) {
+        return getBlockEntityTag(pos.x(), pos.y(), pos.z());
+    }
+
     public Set<ChunkPos> getBoundChunks(Vec3 center) {
         Set<ChunkPos> chunks = new HashSet<>();
 

@@ -20,10 +20,13 @@ import com.simibubi.create.content.trains.track.*;
 import net.createmod.catnip.data.Couple;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.Clearable;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -168,9 +171,31 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         }
                     }
                     BlockPos blockPos = new BlockPos(cPos.getMinBlockX()+x, y, cPos.getMinBlockZ()+z);
+                    CompoundTag blockEntityTag = station.getBlockEntityTag(p.subtract(center));
+                    boolean shouldLoadBlockEntity = blockEntityTag != null && blockState.hasBlockEntity();
+                    if (shouldLoadBlockEntity) {
+                        Clearable.tryClear(world.getBlockEntity(blockPos));
+                        world.setBlock(blockPos, Blocks.BARRIER.defaultBlockState(), 20);
+                    }
                     world.setBlock(blockPos, blockState, 3);
+                    if (shouldLoadBlockEntity) {
+                        placeBlockEntity(world, blockPos, blockEntityTag);
+                    }
                 }
             }
+        }
+    }
+
+    private static void placeBlockEntity(WorldGenLevel world, BlockPos blockPos, CompoundTag blockEntityTag) {
+        CompoundTag tag = blockEntityTag.copy();
+        tag.putInt("x", blockPos.getX());
+        tag.putInt("y", blockPos.getY());
+        tag.putInt("z", blockPos.getZ());
+
+        BlockEntity blockEntity = world.getBlockEntity(blockPos);
+        if (blockEntity != null) {
+            blockEntity.loadWithComponents(tag, world.registryAccess());
+            blockEntity.setChanged();
         }
     }
 

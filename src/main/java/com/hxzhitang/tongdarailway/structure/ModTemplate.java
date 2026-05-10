@@ -19,7 +19,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
 
@@ -100,9 +102,9 @@ public abstract class ModTemplate {
         palette = palette.stream().map(transform::apply).toList();
 
         // 解析方块数据并构建体素网格
-        int[][][] voxelGrid = parseBlocks(rootTag.getList("blocks", Tag.TAG_COMPOUND), size, transform);
+        ParsedBlocks parsedBlocks = parseBlocks(rootTag.getList("blocks", Tag.TAG_COMPOUND), size, transform);
 
-        return new VoxelGrid(palette, voxelGrid, size);
+        return new VoxelGrid(palette, parsedBlocks.voxelGrid(), size, parsedBlocks.blockEntityTags());
     }
 
     /**
@@ -194,8 +196,9 @@ public abstract class ModTemplate {
     /**
      * 解析方块数据并构建体素网格
      */
-    private int[][][] parseBlocks(ListTag blocksTag, BlockPos size, StructureTransform transform) {
+    private ParsedBlocks parseBlocks(ListTag blocksTag, BlockPos size, StructureTransform transform) {
         int[][][] voxelGrid = new int[size.getX()][size.getY()][size.getZ()];
+        Map<BlockPos, CompoundTag> blockEntityTags = new HashMap<>();
 
         // 初始化网格为 -1（空气）
         for (int x = 0; x < size.getX(); x++) {
@@ -229,10 +232,16 @@ public abstract class ModTemplate {
             // 确保位置在范围内
             if (x >= 0 && x < size.getX() && y >= 0 && y < size.getY() && z >= 0 && z < size.getZ()) {
                 voxelGrid[x][y][z] = state + 1;
+                if (blockTag.contains("nbt", Tag.TAG_COMPOUND)) {
+                    blockEntityTags.put(new BlockPos(x, y, z), blockTag.getCompound("nbt").copy());
+                }
             }
         }
 
-        return voxelGrid;
+        return new ParsedBlocks(voxelGrid, blockEntityTags);
+    }
+
+    private record ParsedBlocks(int[][][] voxelGrid, Map<BlockPos, CompoundTag> blockEntityTags) {
     }
 
     private static StructureTransform createRotation(BlockPos size, Rotation rotation) {

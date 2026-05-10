@@ -8,27 +8,36 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class VoxelGrid {
     private final List<BlockState> palette;
     private final int[][][] voxelGrid;
     private final BlockPos size;
+    private final Map<BlockPos, CompoundTag> blockEntityTags;
 
     public int offsetX = 0;
     public int offsetY = 0;
     public int offsetZ = 0;
 
     public VoxelGrid(List<BlockState> palette, int[][][] voxelGrid, BlockPos size) {
+        this(palette, voxelGrid, size, new HashMap<>());
+    }
+
+    public VoxelGrid(List<BlockState> palette, int[][][] voxelGrid, BlockPos size, Map<BlockPos, CompoundTag> blockEntityTags) {
         this.palette = palette;
         this.voxelGrid = voxelGrid;
         this.size = size;
+        this.blockEntityTags = blockEntityTags;
     }
 
     public VoxelGrid(List<BlockState> palette, BlockPos size) {
         this.palette = palette;
         this.voxelGrid = new int[size.getX()][size.getY()][size.getZ()];
         this.size = size;
+        this.blockEntityTags = new HashMap<>();
     }
 
     // Getters
@@ -69,6 +78,10 @@ public class VoxelGrid {
                         pos.add(IntTag.valueOf(k - offsetZ));
                         tag.put("pos", pos);
                         tag.putInt("state", voxelGrid[i][j][k] - 1);
+                        CompoundTag blockEntityTag = blockEntityTags.get(new BlockPos(i, j, k));
+                        if (blockEntityTag != null) {
+                            tag.put("nbt", blockEntityTag.copy());
+                        }
                         blocks.add(tag);
                     }
                 }
@@ -111,6 +124,14 @@ public class VoxelGrid {
             }
         }
         return null; // 空气或无方块
+    }
+
+    public CompoundTag getBlockEntityTag(int x, int y, int z) {
+        if (x >= 0 && x < size.getX() && y >= 0 && y < size.getY() && z >= 0 && z < size.getZ()) {
+            CompoundTag tag = blockEntityTags.get(new BlockPos(x, y, z));
+            return tag == null ? null : tag.copy();
+        }
+        return null;
     }
 
     public void setVoxel(int x, int y, int z, int value) {
