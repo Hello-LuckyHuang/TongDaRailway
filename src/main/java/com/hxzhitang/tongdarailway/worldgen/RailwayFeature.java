@@ -194,6 +194,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
         tag.putInt("z", blockPos.getZ());
 
         BlockEntity blockEntity = world.getBlockEntity(blockPos);
+        // 不加载传动轴方块实体避免传动轴断裂和虚空应力
         if (blockEntity != null && !(blockEntity instanceof KineticBlockEntity)) {
             blockEntity.loadWithComponents(tag, world.registryAccess());
             blockEntity.setChanged();
