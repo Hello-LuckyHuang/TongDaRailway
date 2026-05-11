@@ -86,8 +86,8 @@ public class StationPlanner {
             int h = y;
             for (int ix = -2; ix < 3; ix++) {
                 for (int iz = -2; iz < 3; iz++) {
-                    int ox = ix * 32 + x;
-                    int oz = iz * 32 + z;
+                    int ox = ix * 9 + x;
+                    int oz = iz * 9 + z;
                     int ty = gen.getBaseHeight(ox, oz, Heightmap.Types.WORLD_SURFACE, level, cfg);
                     miny = Math.min(miny, ty);
                 }
