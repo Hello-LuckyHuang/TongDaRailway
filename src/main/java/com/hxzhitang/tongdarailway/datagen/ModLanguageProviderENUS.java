@@ -13,5 +13,10 @@ public class ModLanguageProviderENUS extends LanguageProvider {
     @Override
     protected void addTranslations() {
         this.add(ModBlocks.TRACK_SPAWNER.get(), "Track Spawner");
+        this.add("commands.tongdarailway.searchstation.already_searching", "A station search is already running.");
+        this.add("commands.tongdarailway.searchstation.failed", "Station search failed. Check the server log for details.");
+        this.add("commands.tongdarailway.searchstation.not_found", "No station was found in the surrounding %s x %s railway regions.");
+        this.add("commands.tongdarailway.searchstation.searching", "Searching the surrounding %s x %s railway regions for the nearest station...");
+        this.add("commands.tongdarailway.searchstation.success", "Nearest station coordinates: %s");
     }
 }

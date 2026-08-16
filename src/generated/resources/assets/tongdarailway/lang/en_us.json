@@ -1,3 +1,8 @@
 {
-  "block.tongdarailway.track_spawner": "Track Spawner"
+  "block.tongdarailway.track_spawner": "Track Spawner",
+  "commands.tongdarailway.searchstation.already_searching": "A station search is already running.",
+  "commands.tongdarailway.searchstation.failed": "Station search failed. Check the server log for details.",
+  "commands.tongdarailway.searchstation.not_found": "No station was found in the surrounding %s x %s railway regions.",
+  "commands.tongdarailway.searchstation.searching": "Searching the surrounding %s x %s railway regions for the nearest station...",
+  "commands.tongdarailway.searchstation.success": "Nearest station coordinates: %s"
 }
