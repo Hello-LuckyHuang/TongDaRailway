@@ -50,10 +50,17 @@ public final class TongdarailwayCommand {
     private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("tongdarailway")
                 .then(Commands.literal("searchstation")
-                        .executes(context -> startStationSearch(context.getSource()))));
+                        .executes(context -> startStationSearch(context.getSource(), StationSearchType.ANY))
+                        .then(Commands.literal("large")
+                                .executes(context -> startStationSearch(
+                                        context.getSource(), StationSearchType.LARGE)))
+                        .then(Commands.literal("small")
+                                .executes(context -> startStationSearch(
+                                        context.getSource(), StationSearchType.SMALL)))));
     }
 
-    private static int startStationSearch(CommandSourceStack source) throws CommandSyntaxException {
+    private static int startStationSearch(CommandSourceStack source, StationSearchType searchType)
+            throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         UUID playerId = player.getUUID();
         if (!SEARCHING_PLAYERS.add(playerId)) {
@@ -73,7 +80,7 @@ public final class TongdarailwayCommand {
             BlockPos nearestStation = null;
             Throwable searchError = null;
             try {
-                nearestStation = findNearestStation(level, playerPosition, centerRegion);
+                nearestStation = findNearestStation(level, playerPosition, centerRegion, searchType);
             } catch (Exception exception) {
                 searchError = exception;
             }
@@ -85,7 +92,8 @@ public final class TongdarailwayCommand {
         return 1;
     }
 
-    private static BlockPos findNearestStation(ServerLevel level, Vec3 playerPosition, RegionPos centerRegion) {
+    private static BlockPos findNearestStation(
+            ServerLevel level, Vec3 playerPosition, RegionPos centerRegion, StationSearchType searchType) {
         int minRegionX = centerRegion.x() - SEARCH_REGION_SIZE / 2;
         int minRegionZ = centerRegion.z() - SEARCH_REGION_SIZE / 2;
         int maxRegionX = minRegionX + SEARCH_REGION_SIZE;
@@ -99,7 +107,8 @@ public final class TongdarailwayCommand {
 
         while (!pendingRegions.isEmpty()) {
             RegionPos regionPos = pendingRegions.removeFirst();
-            BlockPos nearestStation = findNearestStationInRegion(level, seed, playerPosition, regionPos);
+            BlockPos nearestStation = findNearestStationInRegion(
+                    level, seed, playerPosition, regionPos, searchType);
             if (nearestStation != null) {
                 return nearestStation;
             }
@@ -118,13 +127,20 @@ public final class TongdarailwayCommand {
     }
 
     private static BlockPos findNearestStationInRegion(
-            ServerLevel level, long seed, Vec3 playerPosition, RegionPos regionPos) {
+            ServerLevel level,
+            long seed,
+            Vec3 playerPosition,
+            RegionPos regionPos,
+            StationSearchType searchType) {
         BlockPos nearestStation = null;
         double nearestDistanceSqr = Double.MAX_VALUE;
 
         var stations = StationPlanner.generateStation(regionPos, level, seed);
         for (var stationAndConnections : stations) {
             StationPlanner.StationGenInfo station = stationAndConnections.getFirst();
+            if (!searchType.matches(station)) {
+                continue;
+            }
             BlockPos stationPos = station.placePos();
             double distanceSqr = stationPos.distToCenterSqr(playerPosition);
             if (distanceSqr < nearestDistanceSqr) {
@@ -185,5 +201,23 @@ public final class TongdarailwayCommand {
                                 Component.translatable("chat.coordinates.tooltip"))));
         player.sendSystemMessage(Component.translatable(
                 "commands.tongdarailway.searchstation.success", coordinates));
+    }
+
+    private enum StationSearchType {
+        ANY(0),
+        LARGE(4),
+        SMALL(2);
+
+        private final int requiredExitCount;
+
+        StationSearchType(int requiredExitCount) {
+            this.requiredExitCount = requiredExitCount;
+        }
+
+        private boolean matches(StationPlanner.StationGenInfo station) {
+            return requiredExitCount == 0
+                    || station.stationTemplate() != null
+                    && station.stationTemplate().getExitCount() == requiredExitCount;
+        }
     }
 }
