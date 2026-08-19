@@ -19,6 +19,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +147,34 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
         String type = "underground";
         RandomPool<StationTemplate> pool = exitNum == 2 ? station2 : station4;
         return pool.get(75_1050 + seed*10000, type, tags);
+    }
+
+    public static List<StationTemplate> getStationRotations(StationTemplate station) {
+        if (station == null) {
+            return List.of();
+        }
+
+        RandomPool<StationTemplate> pool = station.getExitCount() == 2 ? station2 : station4;
+        int rotationOffset = switch (station.rotation) {
+            case NONE -> 0;
+            case CLOCKWISE_90 -> 90;
+            case CLOCKWISE_180 -> 180;
+            case COUNTERCLOCKWISE_90 -> 270;
+        };
+        int baseId = station.getId() - rotationOffset;
+
+        // Keep the randomly selected rotation first so exactly equal scores
+        // retain the previous deterministic choice.
+        List<StationTemplate> rotations = new ArrayList<>(4);
+        rotations.add(station);
+        int[] offsets = {0, 90, 180, 270};
+        for (int offset : offsets) {
+            StationTemplate candidate = pool.getById(baseId + offset);
+            if (candidate != null && candidate != station) {
+                rotations.add(candidate);
+            }
+        }
+        return rotations;
     }
 
     public static RailwayTemplate getRandomGround(long seed, String... tags) {

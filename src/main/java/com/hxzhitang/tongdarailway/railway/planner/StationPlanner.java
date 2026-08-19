@@ -1,7 +1,6 @@
 package com.hxzhitang.tongdarailway.railway.planner;
 
 import com.hxzhitang.tongdarailway.Config;
-import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.ModStructureManager;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
@@ -110,9 +109,16 @@ public class StationPlanner {
             }
 
             int finalH = h;
+            BlockPos placePos = new BlockPos(x, h, z);
+            List<BlockPos> connectedStations = node.connected.stream()
+                    .map(p -> new BlockPos((int) p.x, finalH, (int) p.z))
+                    .toList();
+            if (exitNum == 2) {
+                station = selectExitRotation(station, placePos, connectedStations);
+            }
             result.add(new Pair<>(
-                    new StationGenInfo(station, new BlockPos(x, h, z)),
-                    node.connected.stream().map(p -> new BlockPos((int) p.x, finalH, (int) p.z)).toList()
+                    new StationGenInfo(station, placePos),
+                    connectedStations
             ));
         }
 
@@ -159,6 +165,51 @@ public class StationPlanner {
         });
 
         return result;
+    }
+
+    static StationTemplate selectExitRotation(
+            StationTemplate station,
+            BlockPos placePos,
+            List<BlockPos> connected
+    ) {
+        StationTemplate best = station;
+        double bestScore = rotationAngleScore(station.getExitsPos(placePos), placePos, connected);
+
+        for (StationTemplate candidate : ModStructureManager.getStationRotations(station)) {
+            double score = rotationAngleScore(candidate.getExitsPos(placePos), placePos, connected);
+            if (score < bestScore - 1.0e-12) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private static double rotationAngleScore(
+            List<StationTemplate.Exit> exits,
+            BlockPos stationPos,
+            List<BlockPos> connected
+    ) {
+        List<Pair<StationTemplate.Exit, BlockPos>> matching = minDistanceMatching(exits, connected);
+        Vec3 stationCenter = Vec3.atCenterOf(stationPos);
+        double score = 0.0;
+        int scoredEdges = 0;
+
+        for (Pair<StationTemplate.Exit, BlockPos> pair : matching) {
+            Vec3 routeDirection = Vec3.atCenterOf(pair.getSecond())
+                    .subtract(stationCenter)
+                    .multiply(1.0, 0.0, 1.0);
+            if (routeDirection.lengthSqr() < 1.0e-12) {
+                continue;
+            }
+
+            double dot = pair.getFirst().dir().normalize().dot(routeDirection.normalize());
+            double angle = Math.acos(Math.max(-1.0, Math.min(1.0, dot)));
+            score += angle * angle;
+            scoredEdges++;
+        }
+
+        return scoredEdges == 0 ? Double.POSITIVE_INFINITY : score;
     }
 
     public static List<Pair<StationTemplate.Exit, BlockPos>> minDistanceMatching(
