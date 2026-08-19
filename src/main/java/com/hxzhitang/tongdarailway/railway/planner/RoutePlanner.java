@@ -36,14 +36,18 @@ public class RoutePlanner {
         }
 
         int[] terrainHeights = new int[path.size()];
+        boolean[] oceanSurfacePoints = new boolean[path.size()];
         for (int i = 0; i < path.size(); i++) {
             int[] point = path.get(i);
             terrainHeights[i] = builder.getExactHeight(level, point[0], point[1]);
+            oceanSurfacePoints[i] = terrainHeights[i] <= level.getSeaLevel() + 1
+                    && builder.isOceanBiome(level, point[0], point[1]);
         }
 
         List<int[]> profile = VerticalProfilePlanner.plan(
                 path,
                 terrainHeights,
+                oceanSurfacePoints,
                 level.getSeaLevel(),
                 con.connectStart()[2],
                 con.connectEnd()[2]

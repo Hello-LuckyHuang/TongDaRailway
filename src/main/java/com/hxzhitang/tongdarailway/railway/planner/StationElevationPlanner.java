@@ -18,6 +18,7 @@ import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
 final class StationElevationPlanner {
     private static final int[] FOUNDATION_OFFSETS = {-18, 0, 18};
     private static final int CORRIDOR_SAMPLE_SPACING = 24;
+    private static final int STATION_APPROACH_LENGTH = 65;
     private static final int OPTIMIZATION_PASSES = 12;
     private static final double INFEASIBLE_EDGE_COST = 100_000.0;
 
@@ -48,7 +49,7 @@ final class StationElevationPlanner {
             sites[i] = sampleSite(builder, level, x, z, minHeight, heightCount);
         }
 
-        List<EdgeProfile> edges = buildEdges(nodes, nodeIndices, builder, seaLevel, minHeight, heightCount);
+        List<EdgeProfile> edges = buildEdges(nodes, nodeIndices, builder, level, seaLevel, minHeight, heightCount);
         List<List<EdgeProfile>> incidentEdges = new ArrayList<>(nodes.size());
         for (int i = 0; i < nodes.size(); i++) {
             incidentEdges.add(new ArrayList<>());
@@ -91,9 +92,9 @@ final class StationElevationPlanner {
 
         repairInfeasibleEdges(edges, incidentEdges, sites, selected);
         if (hasInfeasibleEdge(edges, selected)) {
-            // Sea level is below every WORLD_SURFACE bridge cap and gives the
-            // network a deterministic, grade-safe all-tunnel fallback.
-            Arrays.fill(selected, 0);
+            // Sea level + 5 satisfies ocean clearance, remains below every
+            // bridge cap, and gives the network a deterministic flat fallback.
+            Arrays.fill(selected, Math.min(5, heightCount - 1));
         }
 
         List<StationElevation> result = new ArrayList<>(nodes.size());
@@ -178,6 +179,7 @@ final class StationElevationPlanner {
             List<RouteGraph.NodeData> nodes,
             Map<Long, Integer> nodeIndices,
             RailwayBuilder builder,
+            ServerLevel level,
             int seaLevel,
             int minHeight,
             int heightCount
@@ -196,6 +198,7 @@ final class StationElevationPlanner {
                         node.point,
                         nodes.get(second).point,
                         builder,
+                        level,
                         seaLevel,
                         minHeight,
                         heightCount
@@ -211,6 +214,7 @@ final class StationElevationPlanner {
             Vec3 first,
             Vec3 second,
             RailwayBuilder builder,
+            ServerLevel level,
             int seaLevel,
             int minHeight,
             int heightCount
@@ -219,6 +223,7 @@ final class StationElevationPlanner {
         double dz = second.z - first.z;
         int segmentCount = Math.max(1, (int) Math.ceil(Math.sqrt(dx * dx + dz * dz) / CORRIDOR_SAMPLE_SPACING));
         int[][] points = new int[segmentCount + 1][2];
+        int[] minimumHeights = new int[segmentCount + 1];
         int[] maximumHeights = new int[segmentCount + 1];
         for (int i = 0; i <= segmentCount; i++) {
             double progress = i / (double) segmentCount;
@@ -226,7 +231,10 @@ final class StationElevationPlanner {
             int z = (int) Math.round(first.z + dz * progress);
             points[i][0] = x;
             points[i][1] = z;
-            maximumHeights[i] = Math.max(seaLevel, builder.getHeight(x, z))
+            int surfaceHeight = builder.getHeight(x, z);
+            boolean oceanSurface = surfaceHeight <= seaLevel + 1 && builder.isOceanBiome(level, x, z);
+            minimumHeights[i] = oceanSurface ? seaLevel + 5 : seaLevel;
+            maximumHeights[i] = Math.max(seaLevel, surfaceHeight)
                     + VerticalProfilePlanner.MAX_BRIDGE_CLEARANCE;
         }
 
@@ -237,8 +245,8 @@ final class StationElevationPlanner {
                 int secondHeight = minHeight + secondHeightIndex;
                 costs[firstHeightIndex][secondHeightIndex] = routeFeasibilityCost(
                         points,
+                        minimumHeights,
                         maximumHeights,
-                        seaLevel,
                         firstHeight,
                         secondHeight
                 );
@@ -249,21 +257,34 @@ final class StationElevationPlanner {
 
     private static double routeFeasibilityCost(
             int[][] points,
+            int[] minimumHeights,
             int[] maximumHeights,
-            int seaLevel,
             int startHeight,
             int endHeight
     ) {
-        int minimumHeight = Math.min(seaLevel + 5, Math.min(startHeight, endHeight));
-        if (startHeight > maximumHeights[0]) {
-            return INFEASIBLE_EDGE_COST + (startHeight - maximumHeights[0]) * 1_000.0;
+        double[] distances = new double[points.length];
+        for (int i = 1; i < points.length; i++) {
+            double dx = points[i][0] - points[i - 1][0];
+            double dz = points[i][1] - points[i - 1][1];
+            distances[i] = distances[i - 1] + Math.sqrt(dx * dx + dz * dz);
+        }
+        double totalDistance = distances[distances.length - 1];
+        for (int i = 0; i < points.length; i++) {
+            if (distances[i] <= STATION_APPROACH_LENGTH
+                    && (startHeight < minimumHeights[i] || startHeight > maximumHeights[i])) {
+                return heightViolationCost(startHeight, minimumHeights[i], maximumHeights[i]);
+            }
+            if (totalDistance - distances[i] <= STATION_APPROACH_LENGTH
+                    && (endHeight < minimumHeights[i] || endHeight > maximumHeights[i])) {
+                return heightViolationCost(endHeight, minimumHeights[i], maximumHeights[i]);
+            }
         }
 
         int reachableLow = startHeight;
         int reachableHigh = startHeight;
         for (int i = 1; i < points.length; i++) {
             int rise = VerticalProfilePlanner.maxRise(points[i - 1], points[i]);
-            reachableLow = Math.max(minimumHeight, reachableLow - rise);
+            reachableLow = Math.max(minimumHeights[i], reachableLow - rise);
             reachableHigh = Math.min(maximumHeights[i], reachableHigh + rise);
             if (reachableLow > reachableHigh) {
                 return INFEASIBLE_EDGE_COST + (reachableLow - reachableHigh) * 1_000.0;
@@ -277,6 +298,11 @@ final class StationElevationPlanner {
             return INFEASIBLE_EDGE_COST + (endHeight - reachableHigh) * 1_000.0;
         }
         return Math.abs(startHeight - endHeight) * 0.2;
+    }
+
+    private static double heightViolationCost(int height, int minimumHeight, int maximumHeight) {
+        int violation = height < minimumHeight ? minimumHeight - height : height - maximumHeight;
+        return INFEASIBLE_EDGE_COST + violation * 1_000.0;
     }
 
     private static void repairInfeasibleEdges(

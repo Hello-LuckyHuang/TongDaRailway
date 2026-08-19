@@ -22,12 +22,15 @@ final class VerticalProfilePlanner {
     static List<int[]> plan(
             List<int[]> horizontalPath,
             int[] terrainHeights,
+            boolean[] oceanSurfacePoints,
             int seaLevel,
             int startHeight,
             int endHeight
     ) {
         int pointCount = horizontalPath.size();
-        if (pointCount == 0 || terrainHeights.length != pointCount) {
+        if (pointCount == 0
+                || terrainHeights.length != pointCount
+                || oceanSurfacePoints.length != pointCount) {
             return Collections.emptyList();
         }
         if (pointCount == 1) {
@@ -42,8 +45,8 @@ final class VerticalProfilePlanner {
         int maxHeight = Math.max(seaLevel + HEIGHT_MAX_INCREMENT, Math.max(startHeight, endHeight));
         int heightCount = maxHeight - minHeight + 1;
 
-        if (!isAllowed(0, startHeight, terrainHeights, seaLevel)
-                || !isAllowed(pointCount - 1, endHeight, terrainHeights, seaLevel)) {
+        if (!isAllowed(0, startHeight, terrainHeights, oceanSurfacePoints, seaLevel)
+                || !isAllowed(pointCount - 1, endHeight, terrainHeights, oceanSurfacePoints, seaLevel)) {
             return Collections.emptyList();
         }
 
@@ -56,7 +59,15 @@ final class VerticalProfilePlanner {
         for (int currentIndex = 0; currentIndex < heightCount; currentIndex++) {
             int currentHeight = minHeight + currentIndex;
             if (Math.abs(currentHeight - startHeight) > firstRise
-                    || !isCandidateAllowed(1, currentHeight, pointCount, endHeight, terrainHeights, seaLevel)) {
+                    || !isCandidateAllowed(
+                    1,
+                    currentHeight,
+                    pointCount,
+                    endHeight,
+                    terrainHeights,
+                    oceanSurfacePoints,
+                    seaLevel
+            )) {
                 continue;
             }
             previous[startIndex][currentIndex] = nodeCost(0, startHeight, terrainHeights, seaLevel)
@@ -94,6 +105,7 @@ final class VerticalProfilePlanner {
                                 pointCount,
                                 endHeight,
                                 terrainHeights,
+                                oceanSurfacePoints,
                                 seaLevel
                         )) {
                             continue;
@@ -166,16 +178,27 @@ final class VerticalProfilePlanner {
             int pointCount,
             int endHeight,
             int[] terrainHeights,
+            boolean[] oceanSurfacePoints,
             int seaLevel
     ) {
         if (pointIndex == pointCount - 1 && height != endHeight) {
             return false;
         }
-        return isAllowed(pointIndex, height, terrainHeights, seaLevel);
+        return isAllowed(pointIndex, height, terrainHeights, oceanSurfacePoints, seaLevel);
     }
 
-    private static boolean isAllowed(int pointIndex, int height, int[] terrainHeights, int seaLevel) {
-        int bridgeReference = Math.max(seaLevel, terrainHeights[pointIndex]);
+    private static boolean isAllowed(
+            int pointIndex,
+            int height,
+            int[] terrainHeights,
+            boolean[] oceanSurfacePoints,
+            int seaLevel
+    ) {
+        int terrainHeight = terrainHeights[pointIndex];
+        if (oceanSurfacePoints[pointIndex] && height < seaLevel + 5) {
+            return false;
+        }
+        int bridgeReference = Math.max(seaLevel, terrainHeight);
         return height <= bridgeReference + MAX_BRIDGE_CLEARANCE;
     }
 

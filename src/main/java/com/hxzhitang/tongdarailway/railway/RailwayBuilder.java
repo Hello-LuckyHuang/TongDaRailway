@@ -3,12 +3,14 @@ package com.hxzhitang.tongdarailway.railway;
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.util.AdaptiveHeightSampler;
 import com.hxzhitang.tongdarailway.util.ModSaveData;
+import net.minecraft.core.QuartPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
+import net.neoforged.neoforge.common.Tags;
 
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +27,7 @@ public class RailwayBuilder {
     public final Map<RegionPos, RailwayMap> regionRailways = new ConcurrentHashMap<>();
     public final Map<RegionPos, int[][]> regionHeightMap = new ConcurrentHashMap<>();
     private final Map<net.minecraft.resources.ResourceKey<Level>, ConcurrentMap<Long, Integer>> exactHeightCache = new ConcurrentHashMap<>();
+    private final Map<net.minecraft.resources.ResourceKey<Level>, ConcurrentMap<Long, Boolean>> oceanBiomeCache = new ConcurrentHashMap<>();
 
     private final LinkedBlockingQueue<Runnable> regionRailwayLoadQueue = new LinkedBlockingQueue<Runnable>(); //Ïß³Ì³Ø
     private final ThreadPoolExecutor regionRailwayLoadPoolExecutor = new ThreadPoolExecutor(64, 1024, 1, TimeUnit.DAYS, regionRailwayLoadQueue);
@@ -134,6 +137,31 @@ public class RailwayBuilder {
                     serverLevel,
                     randomState
             );
+        });
+    }
+
+    /** Returns whether the quart containing the position has an ocean biome. */
+    public boolean isOceanBiome(ServerLevel serverLevel, int wx, int wz) {
+        ConcurrentMap<Long, Boolean> dimensionCache = oceanBiomeCache.computeIfAbsent(
+                serverLevel.dimension(),
+                ignored -> new ConcurrentHashMap<>()
+        );
+        int quartX = QuartPos.fromBlock(wx);
+        int quartZ = QuartPos.fromBlock(wz);
+        long key = ((long) quartX << 32) ^ (quartZ & 0xffffffffL);
+        return dimensionCache.computeIfAbsent(key, ignored -> {
+            ChunkGenerator generator = serverLevel.getChunkSource().getGenerator();
+            RandomState randomState = serverLevel.getChunkSource().randomState();
+            try {
+                return generator.getBiomeSource().getNoiseBiome(
+                        quartX,
+                        QuartPos.fromBlock(serverLevel.getSeaLevel()),
+                        quartZ,
+                        randomState.sampler()
+                ).is(Tags.Biomes.IS_OCEAN);
+            } catch (NullPointerException exception) {
+                return false;
+            }
         });
     }
 
