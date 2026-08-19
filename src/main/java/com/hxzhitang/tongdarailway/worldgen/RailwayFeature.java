@@ -336,7 +336,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
             world.setBlock(blockPos, blockState, 3);
             return;
         }
-        if (!world.getBlockState(blockPos).is(Blocks.AIR) && blockState.is(Blocks.STONE)) {
+        if (world.getBlockState(blockPos).canOcclude() && blockState.is(Blocks.STONE)) {
             world.setBlock(blockPos, replaceBlock, 3);
         }
     }
