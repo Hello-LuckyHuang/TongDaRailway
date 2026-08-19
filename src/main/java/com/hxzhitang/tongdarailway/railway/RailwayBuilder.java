@@ -5,6 +5,7 @@ import com.hxzhitang.tongdarailway.util.AdaptiveHeightSampler;
 import com.hxzhitang.tongdarailway.util.ModSaveData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
@@ -23,6 +24,7 @@ public class RailwayBuilder {
     private final Map<RegionPos, Future<?>> regionFutures = new ConcurrentHashMap<>();
     public final Map<RegionPos, RailwayMap> regionRailways = new ConcurrentHashMap<>();
     public final Map<RegionPos, int[][]> regionHeightMap = new ConcurrentHashMap<>();
+    private final Map<net.minecraft.resources.ResourceKey<Level>, ConcurrentMap<Long, Integer>> exactHeightCache = new ConcurrentHashMap<>();
 
     private final LinkedBlockingQueue<Runnable> regionRailwayLoadQueue = new LinkedBlockingQueue<Runnable>(); //线程池
     private final ThreadPoolExecutor regionRailwayLoadPoolExecutor = new ThreadPoolExecutor(64, 1024, 1, TimeUnit.DAYS, regionRailwayLoadQueue);
@@ -112,16 +114,36 @@ public class RailwayBuilder {
         return heightMap[px][pz];
     }
 
+    /**
+     * Returns an exact world-surface height and caches it for every planning stage.
+     * The cache is dimension-aware because planning can query more than one level.
+     */
+    public int getExactHeight(ServerLevel serverLevel, int wx, int wz) {
+        ConcurrentMap<Long, Integer> dimensionCache = exactHeightCache.computeIfAbsent(
+                serverLevel.dimension(),
+                ignored -> new ConcurrentHashMap<>()
+        );
+        long key = ((long) wx << 32) ^ (wz & 0xffffffffL);
+        return dimensionCache.computeIfAbsent(key, ignored -> {
+            ChunkGenerator generator = serverLevel.getChunkSource().getGenerator();
+            RandomState randomState = serverLevel.getChunkSource().randomState();
+            return generator.getBaseHeight(
+                    wx,
+                    wz,
+                    Heightmap.Types.WORLD_SURFACE,
+                    serverLevel,
+                    randomState
+            );
+        });
+    }
+
     private int[][] getHeightMap(ServerLevel serverLevel, RegionPos regionPos) {
         // 高度自适应采样地形高度图
-        ChunkGenerator gen = serverLevel.getChunkSource().getGenerator();
-        RandomState cfg = serverLevel.getChunkSource().randomState();
-
         // 创建采样器：阈值=10，最大层数=3，每个节点4x4采样
         AdaptiveHeightSampler sampler = new AdaptiveHeightSampler(10, 2, 4, (x, z) -> {
             int wx = (int) (x*(16.0/samplingNum) + regionPos.x()*CHUNK_GROUP_SIZE*16);
             int wz = (int) (z*(16.0/samplingNum) + regionPos.z()*CHUNK_GROUP_SIZE*16);
-            return gen.getBaseHeight(wx, wz, Heightmap.Types.WORLD_SURFACE_WG, serverLevel, cfg);
+            return getExactHeight(serverLevel, wx, wz);
         });
 
         try {

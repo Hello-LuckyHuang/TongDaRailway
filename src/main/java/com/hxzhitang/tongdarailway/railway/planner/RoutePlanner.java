@@ -13,9 +13,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
 
 // 寻路 生成路径曲线
 public class RoutePlanner {
@@ -34,83 +31,42 @@ public class RoutePlanner {
      * @param level 服务器世界
      */
     public List<int[]> handleHeight(RailwayBuilder builder, List<int[]> path, ServerLevel level, StationPlanner.ConnectionGenInfo con) {
-        List<double[]> adPath = new LinkedList<>();
-        if (path.isEmpty())
+        if (path == null || path.isEmpty()) {
             return null;
-        int seaLevel = level.getSeaLevel();
-        // 测高
-        for (int[] p : path) {
-            int h = builder.getHeight(p[0], p[1]);
-            // 限制高度范围
-            h = Math.max(h, seaLevel + 5);
-            h = Math.min(h, seaLevel + HEIGHT_MAX_INCREMENT);
-            adPath.add(new double[]{p[0], p[1], h});
         }
 
-        adPath.getFirst()[2] = con.connectStart()[2];
-        adPath.getLast()[2] = con.connectEnd()[2];
+        int[] terrainHeights = new int[path.size()];
+        for (int i = 0; i < path.size(); i++) {
+            int[] point = path.get(i);
+            terrainHeights[i] = builder.getExactHeight(level, point[0], point[1]);
+        }
 
-        // 高度调整
-        adPath = adjustmentHeight(adPath);
+        List<int[]> profile = VerticalProfilePlanner.plan(
+                path,
+                terrainHeights,
+                level.getSeaLevel(),
+                con.connectStart()[2],
+                con.connectEnd()[2]
+        );
+        if (profile.isEmpty()) {
+            Tongdarailway.LOGGER.warn(
+                    "No grade-safe vertical profile from {} to {}",
+                    Arrays.toString(con.connectStart()),
+                    Arrays.toString(con.connectEnd())
+            );
+            return null;
+        }
+        return preserveProfileControlPoints(profile);
+    }
 
-        //卷积平滑 保持首末点不变
-        int max = adPath.stream().mapToInt(p -> (int) p[2]).max().orElse(0);
-        int min = adPath.stream().mapToInt(p -> (int) p[2]).min().orElse(0);
-        int framed2 = (max - min) / 6;
-        framed2 = adPath.size() > framed2*2 ? framed2 : (adPath.size()-4)/2;
-
-        if (adPath.size() > framed2*2) {
-            // 平滑中间
-            List<double[]> adPath1 = new ArrayList<>();
-            adPath1.add(adPath.getFirst());
-            for (int i = 1; i < adPath.size()-1; i++) {
-                double mean = 0;
-                int sum = 0;
-                for (int j = i-framed2; j <= i+framed2; j++) {
-                    if (j >= 0 && j < adPath.size()) {
-                        mean += adPath.get(j)[2];
-                        sum++;
-                    } else if (j < 0) {
-                        mean += adPath.getFirst()[2];
-                        sum++;
-                    } else {
-                        mean += adPath.getLast()[2];
-                        sum++;
-                    }
-                }
-                mean /= sum;
-                adPath1.add(new double[] {adPath.get(i)[0], adPath.get(i)[1], mean});
+    private static List<int[]> preserveProfileControlPoints(List<int[]> profile) {
+        List<int[]> expanded = new ArrayList<>(profile.size() * 4);
+        for (int[] point : profile) {
+            for (int repeat = 0; repeat < 4; repeat++) {
+                expanded.add(point.clone());
             }
-            adPath1.add(adPath.getLast());
-            adPath = adPath1;
-        } else {
-            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
         }
-
-        // 平滑起末
-        framed2 = 40;
-        framed2 = adPath.size() > framed2*2 ? framed2 : (adPath.size()-4)/2;
-        double fh = con.connectStart()[2];
-        double lh = con.connectEnd()[2];
-        if (adPath.size() > framed2*2) {
-            for (int i = 1; i < framed2; i++) {
-                double t = i / (double) (framed2);
-                double sh = adPath.get(i)[2];
-                double eh = adPath.get(adPath.size() - 1 - i)[2];
-
-                adPath.get(i)[2] = fh * (1 - t) + sh * t;
-                adPath.get(adPath.size() - 1 - i)[2] = lh * (1 - t) + eh * t;
-            }
-        } else {
-            Tongdarailway.LOGGER.warn("route length is too short {}. smooth disabled", adPath.size());
-        }
-
-        return adPath.stream()
-                .map(arr -> Arrays.stream(arr)
-                        .mapToInt(d -> (int) Math.round(d))  // 四舍五入
-                        .toArray()
-                )
-                .collect(Collectors.toList());
+        return expanded;
     }
 
     /**
@@ -213,82 +169,6 @@ public class RoutePlanner {
         result.addLine(pB, con.end());
 
         return result;
-    }
-
-    private static List<double[]> adjustmentHeight(List<double[]> path) {
-        List<double[]> adjustedPath = new ArrayList<>();
-        //连接首末点计算高度基线，求出相对高度。
-        if (path.size() < 2)
-            return new LinkedList<>();
-        double hStart = path.getFirst()[2];
-        double hEnd = path.getLast()[2];
-        double pNum = path.size() - 1;
-
-        //计算相对高度
-        List<double[]> heightList0 = new ArrayList<>(); //坐标、相对高度
-        Map<Integer, List<double[]>> heightGroups = new HashMap<>(); //高度索引表
-        double distance = 0;
-        for (int i = 0; i < path.size(); i++) {
-            //计算相对高度
-            double[] point = path.get(i);
-            double h = point[2] - hStart * ((pNum - i) / pNum) - hEnd * (i / pNum);
-            //计算距离
-            if (i > 0) {
-                double h0 = point[2];
-                double h1 = path.get(i-1)[2];
-                distance += 1 + Math.abs(h0 - h1);
-            }
-            //生成点
-            double[] p = {point[0], point[1], h, i, distance}; //x,z,高度,索引,距离
-            //添加到点表
-            heightList0.add(p);
-            //添加高度索引表
-            int hi = (int) h;
-            heightGroups.computeIfAbsent(hi, k -> new ArrayList<>()).add(p);
-        }
-        // 三角函数
-        double sec = Math.sqrt(Math.pow(heightList0.size(), 2) + Math.pow(Math.abs(hStart - hEnd), 2)) / (heightList0.size());
-
-        //削峰填谷
-        for (int j = 0; j < heightList0.size(); j++) {
-            double[] thisPoint = heightList0.get(j); //获取目前点
-            adjustedPath.add(new double[] {thisPoint[0], thisPoint[1], thisPoint[2]});
-            int hd = 0; //hd: 下一个点和目前点的高差
-            if (j < heightList0.size() - 1) { //下一个点和目前点的高差
-                hd = (int)heightList0.get(j+1)[2] - (int)thisPoint[2];
-            }
-            //同高度，跳过
-            if (hd == 0)
-                continue;
-            double h = thisPoint[2]; //目前点高度
-            var group = heightGroups.get((int)h); //获取目前点同高度的点组
-            int groupIndex = group.indexOf(thisPoint); //当前点在点组中的索引
-            //获取同高度点组中的下一个点
-            if (groupIndex < group.size() - 1) { //如果有后继
-                double[] nextSameHeightPoint = group.get(groupIndex+1); //同高度的下一个点
-                int nextPointIndex = heightList0.indexOf(nextSameHeightPoint); //它的索引
-                double dA = thisPoint[4], dB = nextSameHeightPoint[4];
-                double iA = thisPoint[3], iB = nextSameHeightPoint[3];
-                //可能的桥 可能的隧道
-                boolean conditionBridge = hd < 0 && (iB - iA) * 4 * sec < dB - dA;
-                boolean conditionTunnel = hd > 0 && (iB - iA) * 3 * sec < dB - dA;
-                if (conditionBridge || conditionTunnel) {
-                    //调整高度
-                    for (int k = j; k < nextPointIndex; k++) {
-                        double[] np1 = heightList0.get(k+1);
-                        adjustedPath.add(new double[] {np1[0], np1[1], thisPoint[2]});
-                    }
-                    j = nextPointIndex;
-                }
-            }
-        }
-        //最终再将所有点的高度加上基线
-        for (int i = 0; i < adjustedPath.size(); i++) {
-            double[] p = adjustedPath.get(i);
-            p[2] += hStart * ((pNum - i) / pNum) + hEnd * (i / pNum);
-        }
-
-        return adjustedPath;
     }
 
     public record ResultWay(
