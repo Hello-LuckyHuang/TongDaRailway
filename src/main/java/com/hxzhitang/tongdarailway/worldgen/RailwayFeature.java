@@ -224,9 +224,6 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
     }
 
     private static void placeRoadbed(RailwayMap railwayMap, ChunkPos cPos, WorldGenLevel world) {
-        ChunkGenerator gen = world.getLevel().getChunkSource().getGenerator();
-        RandomState cfg = world.getLevel().getChunkSource().randomState();
-
         var routes = railwayMap.routeMap.get(cPos);
         for (CurveRoute route : routes) {
             int seed = route.getSegments().size();
@@ -252,8 +249,9 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                     BlockPos nearestPos = new BlockPos((int) nearest0.x, (int) nearest0.y, (int) nearest0.z);
                     int h = world.getHeight(Heightmap.Types.OCEAN_FLOOR_WG, nearestPos.getX(), nearestPos.getZ());
 
-                    boolean conditionBridge = nearest0.y > h + 10;
-                    boolean conditionTunnel = nearest0.y < h - 9;
+                    boolean conditionBridge = nearest0.y > h + 6;
+                    boolean conditionTunnel = nearest0.y < h - 12;
+                    boolean isGround = !conditionBridge && !conditionTunnel;
 
                     // 随机获取一个路基，使用路线段数作为种子来选择
                     RailwayTemplate structureTemplate;
@@ -284,7 +282,11 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                         BlockState blockState = structureTemplate.getBlockState(localX, localY, localZ);
                         if (blockState != null) {
                             BlockPos blockPos = new BlockPos(cPos.getMinBlockX()+x, y, cPos.getMinBlockZ()+z);
-                            placeAndUpdate(world, blockPos, blockState);
+                            if (!isGround) {
+                                placeAndUpdate(world, blockPos, blockState);
+                            } else {
+                                placeNotAirReplaceStone(world, blockPos, blockState, Blocks.COBBLESTONE.defaultBlockState());
+                            }
                         }
                     }
                     // 向下填充地基直到遇到支撑方块(隧道不考虑向下填充地基)
@@ -326,6 +328,16 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
             BlockPos neighborPos = blockPos.relative(direction);
             BlockState neighborState = Block.updateFromNeighbourShapes(world.getBlockState(neighborPos), world, neighborPos);
             world.setBlock(neighborPos, neighborState, 3);
+        }
+    }
+
+    private static void placeNotAirReplaceStone(WorldGenLevel world, BlockPos blockPos, BlockState blockState, BlockState replaceBlock) {
+        if (!blockState.is(Blocks.STONE)) {
+            world.setBlock(blockPos, blockState, 3);
+            return;
+        }
+        if (!world.getBlockState(blockPos).is(Blocks.AIR) && blockState.is(Blocks.STONE)) {
+            world.setBlock(blockPos, replaceBlock, 3);
         }
     }
 }

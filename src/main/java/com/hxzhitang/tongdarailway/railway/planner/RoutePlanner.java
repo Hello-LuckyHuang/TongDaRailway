@@ -135,6 +135,16 @@ public class RoutePlanner {
         }
         path1.addLast(path0.getLast());
 
+//        List<Vec3> path1 = new ArrayList<>();
+//        path1.addFirst(path0.getFirst());
+//        for (int i = 2; i < path0.size()-5; i+=4) {
+//            var a = path0.get(i);
+//            var b = path0.get(i+4);
+//
+//            path1.add((a.add(b)).scale(0.5));
+//        }
+//        path1.addLast(path0.getLast());
+
         // 连接线路和车站
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
