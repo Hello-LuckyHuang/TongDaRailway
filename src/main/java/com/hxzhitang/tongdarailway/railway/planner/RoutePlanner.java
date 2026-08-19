@@ -56,17 +56,7 @@ public class RoutePlanner {
             );
             return null;
         }
-        return preserveProfileControlPoints(profile);
-    }
-
-    private static List<int[]> preserveProfileControlPoints(List<int[]> profile) {
-        List<int[]> expanded = new ArrayList<>(profile.size() * 4);
-        for (int[] point : profile) {
-            for (int repeat = 0; repeat < 4; repeat++) {
-                expanded.add(point.clone());
-            }
-        }
-        return expanded;
+        return profile;
     }
 
     /**
