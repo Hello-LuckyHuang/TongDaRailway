@@ -1,0 +1,7 @@
+{
+  "class": "station",
+  "type": "normal",
+  "template": "tongdarailway:station/normal/large_modern_t2",
+  "height_offset": 0,
+  "tags": ["default"]
+}
