@@ -11,10 +11,12 @@ import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
  * Dynamic-programming planner for the vertical profile of a horizontal route.
  */
 final class VerticalProfilePlanner {
-    static final int MAX_BRIDGE_CLEARANCE = 20;
+    static final int PREFERRED_MAX_BRIDGE_CLEARANCE = 20;
     static final double HORIZONTAL_BLOCKS_PER_RISE = 12.0;
 
     private static final double INF = Double.POSITIVE_INFINITY;
+    private static final double BRIDGE_LIMIT_EXCEEDED_COST = 1_000_000.0;
+    private static final double OCEAN_CLEARANCE_MISSED_COST = 250_000.0;
 
     private VerticalProfilePlanner() {
     }
@@ -34,19 +36,26 @@ final class VerticalProfilePlanner {
             return Collections.emptyList();
         }
         if (pointCount == 1) {
-            if (startHeight != endHeight) {
+            if (startHeight != endHeight || startHeight < seaLevel) {
                 return Collections.emptyList();
             }
             int[] point = horizontalPath.getFirst();
             return List.of(new int[]{point[0], point[1], startHeight});
         }
 
-        int minHeight = Math.min(seaLevel + 5, Math.min(startHeight, endHeight));
+        if (startHeight < seaLevel || endHeight < seaLevel) {
+            return Collections.emptyList();
+        }
+
+        int minHeight = seaLevel;
         int maxHeight = Math.max(seaLevel + HEIGHT_MAX_INCREMENT, Math.max(startHeight, endHeight));
         int heightCount = maxHeight - minHeight + 1;
 
-        if (!isAllowed(0, startHeight, terrainHeights, oceanSurfacePoints, seaLevel)
-                || !isAllowed(pointCount - 1, endHeight, terrainHeights, oceanSurfacePoints, seaLevel)) {
+        int totalRiseCapacity = 0;
+        for (int i = 1; i < pointCount; i++) {
+            totalRiseCapacity += maxRise(horizontalPath.get(i - 1), horizontalPath.get(i));
+        }
+        if (Math.abs(endHeight - startHeight) > totalRiseCapacity) {
             return Collections.emptyList();
         }
 
@@ -59,19 +68,16 @@ final class VerticalProfilePlanner {
         for (int currentIndex = 0; currentIndex < heightCount; currentIndex++) {
             int currentHeight = minHeight + currentIndex;
             if (Math.abs(currentHeight - startHeight) > firstRise
-                    || !isCandidateAllowed(
-                    1,
-                    currentHeight,
-                    pointCount,
-                    endHeight,
+                    || !isCandidateAllowed(1, currentHeight, pointCount, endHeight)) {
+                continue;
+            }
+            previous[startIndex][currentIndex] = nodeCost(
+                    0,
+                    startHeight,
                     terrainHeights,
                     oceanSurfacePoints,
                     seaLevel
-            )) {
-                continue;
-            }
-            previous[startIndex][currentIndex] = nodeCost(0, startHeight, terrainHeights, seaLevel)
-                    + nodeCost(1, currentHeight, terrainHeights, seaLevel)
+            ) + nodeCost(1, currentHeight, terrainHeights, oceanSurfacePoints, seaLevel)
                     + gradeCost(currentHeight - startHeight)
                     + modeChangeCost(
                     mode(startHeight, terrainHeights[0]),
@@ -99,21 +105,19 @@ final class VerticalProfilePlanner {
                     int nextEnd = Math.min(heightCount - 1, currentIndex + rise);
                     for (int nextIndex = nextStart; nextIndex <= nextEnd; nextIndex++) {
                         int nextHeight = minHeight + nextIndex;
-                        if (!isCandidateAllowed(
-                                pointIndex,
-                                nextHeight,
-                                pointCount,
-                                endHeight,
-                                terrainHeights,
-                                oceanSurfacePoints,
-                                seaLevel
-                        )) {
+                        if (!isCandidateAllowed(pointIndex, nextHeight, pointCount, endHeight)) {
                             continue;
                         }
 
                         int secondGrade = nextHeight - currentHeight;
                         double candidateCost = costSoFar
-                                + nodeCost(pointIndex, nextHeight, terrainHeights, seaLevel)
+                                + nodeCost(
+                                pointIndex,
+                                nextHeight,
+                                terrainHeights,
+                                oceanSurfacePoints,
+                                seaLevel
+                        )
                                 + gradeCost(secondGrade)
                                 + gradeChangeCost(firstGrade, secondGrade)
                                 + modeChangeCost(
@@ -169,54 +173,47 @@ final class VerticalProfilePlanner {
         if (horizontalDistance < 1.0e-9) {
             return 0;
         }
-        return Math.max(1, (int) Math.floor(horizontalDistance / HORIZONTAL_BLOCKS_PER_RISE + 1.0e-9));
+        return (int) Math.floor(horizontalDistance / HORIZONTAL_BLOCKS_PER_RISE + 1.0e-9);
     }
 
     private static boolean isCandidateAllowed(
             int pointIndex,
             int height,
             int pointCount,
-            int endHeight,
-            int[] terrainHeights,
-            boolean[] oceanSurfacePoints,
-            int seaLevel
+            int endHeight
     ) {
-        if (pointIndex == pointCount - 1 && height != endHeight) {
-            return false;
-        }
-        return isAllowed(pointIndex, height, terrainHeights, oceanSurfacePoints, seaLevel);
+        return pointIndex != pointCount - 1 || height == endHeight;
     }
 
-    private static boolean isAllowed(
+    private static double nodeCost(
             int pointIndex,
             int height,
             int[] terrainHeights,
             boolean[] oceanSurfacePoints,
             int seaLevel
     ) {
-        int terrainHeight = terrainHeights[pointIndex];
-        if (oceanSurfacePoints[pointIndex] && height < seaLevel + 5) {
-            return false;
-        }
-        int bridgeReference = Math.max(seaLevel, terrainHeight);
-        return height <= bridgeReference + MAX_BRIDGE_CLEARANCE;
-    }
-
-    private static double nodeCost(int pointIndex, int height, int[] terrainHeights, int seaLevel) {
         int terrain = terrainHeights[pointIndex];
         int delta = height - terrain;
+        double cost;
         if (delta > 3) {
-            return 12.0 + delta * delta * 1.6;
-        }
-        if (delta < -3) {
+            cost = 12.0 + delta * delta * 1.6;
+        } else if (delta < -3) {
             int depth = -delta;
-            return 4.0 + depth * 0.35 + depth * depth * 0.015;
+            cost = 4.0 + depth * 0.35 + depth * depth * 0.015;
+        } else {
+            cost = Math.abs(delta) * 0.8;
         }
-        double surfaceCost = Math.abs(delta) * 0.8;
-        if (height < seaLevel + 5) {
-            surfaceCost += (seaLevel + 5 - height) * 3.0;
+
+        int bridgeClearance = height - Math.max(seaLevel, terrain);
+        if (bridgeClearance > PREFERRED_MAX_BRIDGE_CLEARANCE) {
+            int excess = bridgeClearance - PREFERRED_MAX_BRIDGE_CLEARANCE;
+            cost += BRIDGE_LIMIT_EXCEEDED_COST + excess * excess * 100_000.0;
         }
-        return surfaceCost;
+        if (oceanSurfacePoints[pointIndex] && height < seaLevel + 5) {
+            int missingClearance = seaLevel + 5 - height;
+            cost += OCEAN_CLEARANCE_MISSED_COST + missingClearance * missingClearance * 25_000.0;
+        }
+        return cost;
     }
 
     private static double gradeCost(int grade) {
