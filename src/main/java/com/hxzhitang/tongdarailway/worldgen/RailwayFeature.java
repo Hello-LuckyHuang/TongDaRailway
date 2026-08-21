@@ -249,7 +249,7 @@ public class RailwayFeature extends Feature<RailwayFeatureConfig> {
                     BlockPos nearestPos = new BlockPos((int) nearest0.x, (int) nearest0.y, (int) nearest0.z);
                     int h = world.getHeight(Heightmap.Types.OCEAN_FLOOR_WG, nearestPos.getX(), nearestPos.getZ());
 
-                    boolean conditionBridge = nearest0.y > h + 6;
+                    boolean conditionBridge = nearest0.y > h + 4;
                     boolean conditionTunnel = nearest0.y < h - 12;
                     boolean isGround = !conditionBridge && !conditionTunnel;
 
