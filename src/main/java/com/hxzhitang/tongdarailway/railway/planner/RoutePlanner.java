@@ -34,6 +34,10 @@ public class RoutePlanner {
         if (path == null || path.isEmpty()) {
             return null;
         }
+        path = thinPath(path);
+        if (path.isEmpty()) {
+            return null;
+        }
 
         int[] terrainHeights = new int[path.size()];
         boolean[] oceanSurfacePoints = new boolean[path.size()];
@@ -64,6 +68,24 @@ public class RoutePlanner {
     }
 
     /**
+     * Applies the control-point thinning that used to live in connectTrackNew4.
+     * Keeping the same index bounds preserves the original horizontal geometry.
+     */
+    private static List<int[]> thinPath(List<int[]> path) {
+        int convertedPointCount = path.size() - 2;
+        if (convertedPointCount <= 0) {
+            return List.of();
+        }
+
+        List<int[]> thinned = new ArrayList<>();
+        for (int i = 0; i < convertedPointCount - 7; i += 4) {
+            thinned.add(path.get(i));
+        }
+        thinned.add(path.get(convertedPointCount - 1));
+        return thinned;
+    }
+
+    /**
      * 将直线路径段通过三阶贝塞尔曲线平滑连接
      * @param path 路线的端点
      * @return 连接后的复合曲线
@@ -72,28 +94,10 @@ public class RoutePlanner {
         if (path == null)
             return null;
         // 转换为世界坐标系
-        List<Vec3> path0 = new ArrayList<>();
-
-        for (int i = 0; i < path.size() - 2; i++) {
-            int[] point = path.get(i);
-            path0.add(new Vec3(point[0], point[2], point[1]));
-        }
-
         List<Vec3> path1 = new ArrayList<>();
-        for (int i = 0; i < path0.size()-7; i+=4) {
-            path1.add(path0.get(i));
+        for (int[] point : path) {
+            path1.add(new Vec3(point[0], point[2], point[1]));
         }
-        path1.addLast(path0.getLast());
-
-//        List<Vec3> path1 = new ArrayList<>();
-//        path1.addFirst(path0.getFirst());
-//        for (int i = 2; i < path0.size()-5; i+=4) {
-//            var a = path0.get(i);
-//            var b = path0.get(i+4);
-//
-//            path1.add((a.add(b)).scale(0.5));
-//        }
-//        path1.addLast(path0.getLast());
 
         // 连接线路和车站
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());

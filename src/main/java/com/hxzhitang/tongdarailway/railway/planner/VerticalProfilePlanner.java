@@ -50,10 +50,11 @@ final class VerticalProfilePlanner {
         int minHeight = seaLevel;
         int maxHeight = Math.max(seaLevel + HEIGHT_MAX_INCREMENT, Math.max(startHeight, endHeight));
         int heightCount = maxHeight - minHeight + 1;
+        boolean[] flatSegments = findRequiredFlatSegments(horizontalPath);
 
         int totalRiseCapacity = 0;
         for (int i = 1; i < pointCount; i++) {
-            totalRiseCapacity += maxRise(horizontalPath.get(i - 1), horizontalPath.get(i));
+            totalRiseCapacity += allowedRise(horizontalPath, flatSegments, i - 1);
         }
         if (Math.abs(endHeight - startHeight) > totalRiseCapacity) {
             return Collections.emptyList();
@@ -64,7 +65,7 @@ final class VerticalProfilePlanner {
         int[][][] parent = new int[pointCount][heightCount][heightCount];
 
         int startIndex = startHeight - minHeight;
-        int firstRise = maxRise(horizontalPath.get(0), horizontalPath.get(1));
+        int firstRise = allowedRise(horizontalPath, flatSegments, 0);
         for (int currentIndex = 0; currentIndex < heightCount; currentIndex++) {
             int currentHeight = minHeight + currentIndex;
             if (Math.abs(currentHeight - startHeight) > firstRise
@@ -89,7 +90,7 @@ final class VerticalProfilePlanner {
         for (int pointIndex = 2; pointIndex < pointCount; pointIndex++) {
             double[][] current = new double[heightCount][heightCount];
             fill(current, INF);
-            int rise = maxRise(horizontalPath.get(pointIndex - 1), horizontalPath.get(pointIndex));
+            int rise = allowedRise(horizontalPath, flatSegments, pointIndex - 1);
 
             for (int previousIndex = 0; previousIndex < heightCount; previousIndex++) {
                 int previousHeight = minHeight + previousIndex;
@@ -164,6 +165,47 @@ final class VerticalProfilePlanner {
             result.add(new int[]{point[0], point[1], minHeight + selected[i]});
         }
         return result;
+    }
+
+    private static boolean[] findRequiredFlatSegments(List<int[]> path) {
+        boolean[] flatSegments = new boolean[Math.max(0, path.size() - 1)];
+        if (flatSegments.length == 0) {
+            return flatSegments;
+        }
+
+        // The two station-end points at each end must share the station height.
+        flatSegments[0] = true;
+        flatSegments[flatSegments.length - 1] = true;
+
+        // A turn and the point immediately before and after it must be level.
+        for (int pointIndex = 1; pointIndex < path.size() - 1; pointIndex++) {
+            if (directionChanges(path.get(pointIndex - 1), path.get(pointIndex), path.get(pointIndex + 1))) {
+                flatSegments[pointIndex - 1] = true;
+                flatSegments[pointIndex] = true;
+            }
+        }
+        return flatSegments;
+    }
+
+    private static int allowedRise(List<int[]> path, boolean[] flatSegments, int segmentIndex) {
+        if (flatSegments[segmentIndex]) {
+            return 0;
+        }
+        return maxRise(path.get(segmentIndex), path.get(segmentIndex + 1));
+    }
+
+    private static boolean directionChanges(int[] previous, int[] current, int[] next) {
+        long firstX = (long) current[0] - previous[0];
+        long firstZ = (long) current[1] - previous[1];
+        long secondX = (long) next[0] - current[0];
+        long secondZ = (long) next[1] - current[1];
+
+        if ((firstX == 0 && firstZ == 0) || (secondX == 0 && secondZ == 0)) {
+            return true;
+        }
+        long cross = firstX * secondZ - firstZ * secondX;
+        long dot = firstX * secondX + firstZ * secondZ;
+        return cross != 0 || dot <= 0;
     }
 
     static int maxRise(int[] first, int[] second) {

@@ -212,7 +212,9 @@ final class StationElevationPlanner {
         double dx = second.x - first.x;
         double dz = second.z - first.z;
         double distance = Math.sqrt(dx * dx + dz * dz);
-        double gradedDistance = Math.max(0.0, distance - STATION_APPROACH_LENGTH * 2.0);
+        double requiredLevelDistance = STATION_APPROACH_LENGTH * 2.0
+                + VerticalProfilePlanner.HORIZONTAL_BLOCKS_PER_RISE * 2.0;
+        double gradedDistance = Math.max(0.0, distance - requiredLevelDistance);
         int riseCapacity = (int) Math.floor(
                 gradedDistance / VerticalProfilePlanner.HORIZONTAL_BLOCKS_PER_RISE + 1.0e-9
         );
