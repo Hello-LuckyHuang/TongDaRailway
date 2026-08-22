@@ -40,6 +40,15 @@ public class StationPlanner {
 
     // 区域内站点生成
     public static List<Pair<StationGenInfo, List<BlockPos>>> generateStation(RegionPos regionPos, ServerLevel level, long seed) {
+        return generateStation(regionPos, level, seed, RailwayBuilder.getInstance(seed));
+    }
+
+    public static List<Pair<StationGenInfo, List<BlockPos>>> generateStation(
+            RegionPos regionPos,
+            ServerLevel level,
+            long seed,
+            RailwayBuilder builder
+    ) {
         ChunkGenerator gen = level.getChunkSource().getGenerator();
         RandomState cfg = level.getChunkSource().randomState();
 
@@ -74,25 +83,25 @@ public class StationPlanner {
                 }
         );
 
-        RailwayBuilder builder = RailwayBuilder.getInstance(seed);
-        if (builder == null) {
-            throw new IllegalStateException("RailwayBuilder must exist before station elevation planning");
-        }
-        List<StationElevationPlanner.StationElevation> elevations = StationElevationPlanner.plan(nodes, builder, level);
+        List<StationElevationPlanner.StationElevation> elevations = builder == null
+                ? null
+                : StationElevationPlanner.plan(nodes, builder, level);
 
         for (int nodeIndex = 0; nodeIndex < nodes.size(); nodeIndex++) {
             RouteGraph.NodeData node = nodes.get(nodeIndex);
-            StationElevationPlanner.StationElevation elevation = elevations.get(nodeIndex);
+            StationElevationPlanner.StationElevation elevation = elevations == null
+                    ? null
+                    : elevations.get(nodeIndex);
             int x = (int) node.point.x;
             int z = (int) node.point.z;
-            int h = elevation.height();
+            int h = elevation == null ? 0 : elevation.height();
             node.setPointY(h);
 
             // 根据高度决定生成地上还是地下车站
             int exitNum = node.connected.size() >= 3 ? 4 : 2;
             StationTemplate station;
             long stationSeed = regionSeed + x* 3L + z* 7L;
-            if (elevation.underground()) {
+            if (elevation != null && elevation.underground()) {
                 station = ModStructureManager.getRandomUnderGroundStation(stationSeed, exitNum);
             } else {
                 station = ModStructureManager.getRandomNormalStation(stationSeed, exitNum);

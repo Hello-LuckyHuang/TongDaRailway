@@ -135,7 +135,7 @@ public final class TongdarailwayCommand {
         BlockPos nearestStation = null;
         double nearestDistanceSqr = Double.MAX_VALUE;
 
-        var stations = StationPlanner.generateStation(regionPos, level, seed);
+        var stations = StationPlanner.generateStation(regionPos, level, seed, null);
         for (var stationAndConnections : stations) {
             StationPlanner.StationGenInfo station = stationAndConnections.getFirst();
             if (!searchType.matches(station)) {
@@ -190,12 +190,12 @@ public final class TongdarailwayCommand {
         }
 
         Component coordinates = ComponentUtils.wrapInSquareBrackets(Component.translatable(
-                        "chat.coordinates", nearestStation.getX(), nearestStation.getY(), nearestStation.getZ()))
+                        "chat.coordinates", nearestStation.getX(), "~", nearestStation.getZ()))
                 .withStyle(style -> style.withColor(ChatFormatting.GREEN)
                         .withClickEvent(new ClickEvent(
                                 ClickEvent.Action.SUGGEST_COMMAND,
                                 "/tp @s " + nearestStation.getX() + " "
-                                        + nearestStation.getY() + " " + nearestStation.getZ()))
+                                        + "~ " + nearestStation.getZ()))
                         .withHoverEvent(new HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
                                 Component.translatable("chat.coordinates.tooltip"))));
