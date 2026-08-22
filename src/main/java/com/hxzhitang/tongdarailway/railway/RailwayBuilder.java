@@ -175,12 +175,12 @@ public class RailwayBuilder {
         });
 
         try {
-            long startTime = System.currentTimeMillis();
+//            long startTime = System.currentTimeMillis();
             // 构建四叉树，区域大小
             sampler.buildQuadTree(CHUNK_GROUP_SIZE*samplingNum);
-            long endTime = System.currentTimeMillis();
+//            long endTime = System.currentTimeMillis();
 //            sampler.printStatistics();
-            Tongdarailway.LOGGER.info(" Region {} Build HeightMap time: {}ms", regionPos, endTime - startTime);
+//            Tongdarailway.LOGGER.info(" Region {} Build HeightMap time: {}ms", regionPos, endTime - startTime);
         } catch (InterruptedException e) {
             Tongdarailway.LOGGER.error("Build HeightMap Err", e);
         } finally {
