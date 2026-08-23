@@ -106,10 +106,22 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
                             tagArray[i+1] = tags.get(i).getAsString();
                         }
                     if (temType.equals("station")) {
-                        StationTemplate template = new StationTemplate(rootTag, heightOffset, id, StationTemplate.StationType.NORMAL);
-                        StationTemplate template90 = new StationTemplate(rootTag, heightOffset, id+90, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_90);
-                        StationTemplate template180 = new StationTemplate(rootTag, heightOffset, id+180, StationTemplate.StationType.NORMAL, Rotation.CLOCKWISE_180);
-                        StationTemplate template270 = new StationTemplate(rootTag, heightOffset, id+270, StationTemplate.StationType.NORMAL, Rotation.COUNTERCLOCKWISE_90);
+                        StationTemplate.StationType stationType = switch (type) {
+                            case "normal" -> StationTemplate.StationType.NORMAL;
+                            case "underground" -> StationTemplate.StationType.UNDER_GROUND;
+                            default -> {
+                                Tongdarailway.LOGGER.warn(
+                                        "Unknown station type '{}' for {}; treating it as normal",
+                                        type,
+                                        location
+                                );
+                                yield StationTemplate.StationType.NORMAL;
+                            }
+                        };
+                        StationTemplate template = new StationTemplate(rootTag, heightOffset, id, stationType);
+                        StationTemplate template90 = new StationTemplate(rootTag, heightOffset, id+90, stationType, Rotation.CLOCKWISE_90);
+                        StationTemplate template180 = new StationTemplate(rootTag, heightOffset, id+180, stationType, Rotation.CLOCKWISE_180);
+                        StationTemplate template270 = new StationTemplate(rootTag, heightOffset, id+270, stationType, Rotation.COUNTERCLOCKWISE_90);
 
                         if (template.getExitCount() == 4) {
                             station4.add(template, id, tagArray);

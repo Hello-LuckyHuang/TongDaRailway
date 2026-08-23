@@ -6,6 +6,7 @@
   "mixins": [
     "LevelChunkMixin",
     "NoiseBasedChunkGeneratorMixin",
+    "StructureManagerAccessor",
     "StructureMixin",
     "TrackBlockEntityExtension",
     "WorldGenRegionMixin"

@@ -3,81 +3,78 @@ package com.hxzhitang.tongdarailway.mixin;
 import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.hxzhitang.tongdarailway.railway.RailwayMap;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
-import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
-import net.minecraft.core.BlockPos;
+import com.hxzhitang.tongdarailway.worldgen.SmoothStationBeardifier;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.StructureManager;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.levelgen.*;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.levelgen.Beardifier;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
+import java.util.List;
 
 @Mixin(NoiseBasedChunkGenerator.class)
 public abstract class NoiseBasedChunkGeneratorMixin {
-    @Inject(method = "buildSurface", at = @At("HEAD"))
-    public void surfaceStart(WorldGenRegion level, StructureManager structureManager, RandomState random, ChunkAccess chunk, CallbackInfo ci) {
-        var dimensionType = level.dimensionType();
-        // 只有主世界生成路
-        if (dimensionType.effectsLocation().toString().equals("minecraft:overworld")) {
-            RegionPos regionPos = RegionPos.regionPosFromChunkPos(chunk.getPos());
+    @WrapOperation(
+            method = "createNoiseChunk",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/level/levelgen/Beardifier;forStructuresInChunk(Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/ChunkPos;)Lnet/minecraft/world/level/levelgen/Beardifier;"
+            )
+    )
+    private Beardifier tongDaRailway211$addStationBeardifier(
+            StructureManager structureManager,
+            ChunkPos chunkPos,
+            Operation<Beardifier> original
+    ) {
+        Beardifier beardifier = original.call(structureManager, chunkPos);
+        LevelAccessor levelAccessor = ((StructureManagerAccessor) structureManager).tongDaRailway211$getLevel();
+        if (!(levelAccessor instanceof WorldGenRegion level)
+                || !level.dimensionType().effectsLocation().equals(Level.OVERWORLD.location())) {
+            return beardifier;
+        }
 
-            RailwayBuilder railwayBuilder = RailwayBuilder.getInstance(level.getSeed(), level);
-            railwayBuilder.generateRailway(regionPos);
+        RegionPos regionPos = RegionPos.regionPosFromChunkPos(chunkPos);
+        RailwayBuilder railwayBuilder = RailwayBuilder.getInstance(level.getSeed(), level);
+        railwayBuilder.generateRailway(regionPos);
 
+        RailwayMap railwayMap = railwayBuilder.regionRailways.get(regionPos);
+        if (railwayMap == null) {
+            return beardifier;
+        }
 
-            // 生成车站托盘
-            RailwayMap railwayMap = railwayBuilder.regionRailways.get(regionPos);
-            if (railwayMap != null) {
-                for (StationPlanner.StationGenInfo stationPlace : railwayMap.stations) {
-                    var station = stationPlace.stationTemplate();
-                    if (station == null) continue;
-                    if (station.type == StationTemplate.StationType.UNDER_GROUND) continue;
-                    var pos = stationPlace.placePos();
-                    var center = pos.getCenter();
+        int blendDistance = SmoothStationBeardifier.HORIZONTAL_BLEND_DISTANCE;
+        int minChunkX = chunkPos.getMinBlockX() - blendDistance;
+        int minChunkZ = chunkPos.getMinBlockZ() - blendDistance;
+        int maxChunkX = chunkPos.getMaxBlockX() + blendDistance;
+        int maxChunkZ = chunkPos.getMaxBlockZ() + blendDistance;
+        List<SmoothStationBeardifier.StationInfluence> stationInfluences = new ArrayList<>();
 
-                    if (station.getTrayBoundChunks(center).contains(chunk.getPos())) {
-                        tongDaRailway211$placeTray(chunk.getPos(), center, station, chunk);
-                    }
-                }
+        for (var stationPlace : railwayMap.stations) {
+            StationTemplate station = stationPlace.stationTemplate();
+            if (station == null || station.getType() == StationTemplate.StationType.UNDER_GROUND) {
+                continue;
+            }
+
+            BoundingBox box = station.getBeardifierBox(stationPlace.placePos());
+            if (box.intersects(minChunkX, minChunkZ, maxChunkX, maxChunkZ)) {
+                stationInfluences.add(new SmoothStationBeardifier.StationInfluence(
+                        box,
+                        box.minY() + station.getBeardifierGroundLevelDelta()
+                ));
             }
         }
-    }
 
-    @Unique
-    private static void tongDaRailway211$placeTray(ChunkPos cPos, Vec3 center, StationTemplate station, ChunkAccess chunk) {
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                var test = new Vec3(cPos.x*16+x, center.y + 1, cPos.z*16+z);
-                if (!station.isInVoxel(test.subtract(center).add(-0.5, -0.5, -0.5)))
-                    continue;
-                for (int oy = station.getLowerBound(); oy < station.getUpperBound(); oy++) {
-                    int y = oy + (int) center.y;
-                    var p = new Vec3(cPos.x*16+x, y, cPos.z*16+z).add(-0.5, -0.5, -0.5);
-                    if (station.isInVoxel(p.subtract(center))) {
-                        chunk.setBlockState(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState(), true);
-                    }
-                }
-            }
-        }
-        Vec3 placeCenter = center.add(0, -3, 0);
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int oy = -5; oy < 6; oy++) {
-                    int y = oy + (int) placeCenter.y;
-                    var p = new Vec3(cPos.x*16+x, y, cPos.z*16+z);
-                    double d = station.dis2Tray(placeCenter, p);
-                    if (d < 3)
-                        chunk.setBlockState(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState(), true);
-                }
-            }
-        }
+        return stationInfluences.isEmpty()
+                ? beardifier
+                : new SmoothStationBeardifier(beardifier, stationInfluences);
     }
 }
