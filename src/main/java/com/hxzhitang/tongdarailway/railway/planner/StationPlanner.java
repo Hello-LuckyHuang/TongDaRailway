@@ -125,11 +125,21 @@ public class StationPlanner {
     }
 
     // 路线连接规则生成
-    public List<ConnectionGenInfo> generateConnections(ServerLevel level, long seed) {
+    public List<ConnectionGenInfo> generateConnections(
+            ServerLevel level,
+            long seed,
+            RailwayBuilder builder
+    ) {
+        builder.checkPlanningCancelled();
         List<ConnectionGenInfo> result = new ArrayList<>();
         Map<Integer, List<StationTemplate.Exit>> connect = new HashMap<>();
 
-        List<Pair<StationGenInfo, List<BlockPos>>> thisStations = generateStation(regionPos, level, seed);
+        List<Pair<StationGenInfo, List<BlockPos>>> thisStations = generateStation(
+                regionPos,
+                level,
+                seed,
+                builder
+        );
 
         for (Pair<StationGenInfo, List<BlockPos>> stationGen : thisStations) {
             var station = stationGen.getFirst();

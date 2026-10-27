@@ -57,6 +57,7 @@ public class AStarPathfinder {
         openSet.offer(startNode);
 
         while (!openSet.isEmpty()) {
+            builder.checkPlanningCancelled();
             Node current = openSet.poll();
             int currentX = current.x;
             int currentY = current.y;

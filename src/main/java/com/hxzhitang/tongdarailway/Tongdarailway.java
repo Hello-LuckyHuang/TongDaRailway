@@ -5,6 +5,7 @@ import com.hxzhitang.tongdarailway.blocks.ModBlocks;
 import com.hxzhitang.tongdarailway.blocks.TrackSpawnerBlockRenderer;
 import com.hxzhitang.tongdarailway.datagen.ModDataGen;
 import com.hxzhitang.tongdarailway.event.FeatureRegistry;
+import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.neoforged.api.distmarker.Dist;
@@ -18,6 +19,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.slf4j.Logger;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
@@ -64,15 +66,10 @@ public class Tongdarailway {
         // Do something when the server starts
     }
 
-//    @SubscribeEvent
-//    public void onServerStopping(ServerStoppingEvent event) {
-//        RailwayBuilder.clearAll();
-//    }
-//
-//    @SubscribeEvent
-//    public void onServerStopped(ServerStoppedEvent event) {
-//        RailwayBuilder.clearAll();
-//    }
+    @SubscribeEvent
+    public void onServerStopped(ServerStoppedEvent event) {
+        RailwayBuilder.onServerStopped(event.getServer());
+    }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
     @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
