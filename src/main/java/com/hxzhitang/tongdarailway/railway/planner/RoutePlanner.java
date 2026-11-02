@@ -2,27 +2,92 @@ package com.hxzhitang.tongdarailway.railway.planner;
 
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
+import com.hxzhitang.tongdarailway.railway.RailwayMap;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
 import com.hxzhitang.tongdarailway.util.*;
+import com.mojang.datafixers.util.Pair;
 import net.createmod.catnip.math.AngleHelper;
 import net.createmod.catnip.math.VecHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
+import static com.hxzhitang.tongdarailway.Tongdarailway.CHUNK_GROUP_SIZE;
+
 // 寻路 生成路径曲线
 public class RoutePlanner {
-    /**
-     * 规划路径
-     * @param way 路线图
-     */
-    public ResultWay getWay(RailwayBuilder builder, List<int[]> way, StationPlanner.ConnectionGenInfo connectionGenInfo, ServerLevel level) {
-        List<int[]> handledHeightWay = handleHeight(builder, way, level, connectionGenInfo);
-        return connectTrackNew4(handledHeightWay, connectionGenInfo);
+    /** 每次规划独立持有上下文，在管线阶段之间传递数据。 */
+    public static final class PlanningContext {
+        final RailwayMap railwayMap;
+        final WorldGenRegion level;
+        final RailwayBuilder builder;
+        List<Pair<StationPlanner.StationGenInfo, List<BlockPos>>> stationData = List.of();
+        List<StationPlanner.ConnectionGenInfo> connections = List.of();
+        private List<PlannedPath> paths = List.of();
+
+        public PlanningContext(RailwayMap railwayMap, WorldGenRegion level, RailwayBuilder builder) {
+            this.railwayMap = railwayMap;
+            this.level = level;
+            this.builder = builder;
+        }
+    }
+
+    /** 路径始终携带所属连接，避免过滤失败路线后与站点出口错位。 */
+    private record PlannedPath(StationPlanner.ConnectionGenInfo connection, List<int[]> points) {
+    }
+
+    /** 寻路阶段，仅在已匹配连接对应的边 Voronoi 单元内搜索。 */
+    public static void findPaths(PlanningContext context) {
+        var searchDiagram = new EdgeVoronoiDiagram(
+                context.connections.stream().map(StationPlanner.ConnectionGenInfo::graphEdge).toList());
+        List<PlannedPath> paths = new ArrayList<>();
+        for (StationPlanner.ConnectionGenInfo connection : context.connections) {
+            context.builder.checkPlanningCancelled();
+            List<int[]> way = AStarPathfinder.findPath(
+                    context.builder,
+                    connection.connectStart(),
+                    Set.of(connection.connectEnd()),
+                    context.railwayMap.regionPos,
+                    0,
+                    searchDiagram.cellFor(connection.graphEdge()),
+                    (x, z) -> context.builder.getHeight(x, z) < context.level.getSeaLevel() + 2 ? 100 : 0
+            );
+            if (way.isEmpty()) {
+                Tongdarailway.LOGGER.warn("No path inside edge Voronoi cell for route {}", connection.graphEdge());
+                continue;
+            }
+            paths.add(new PlannedPath(connection, way));
+        }
+        context.paths = paths;
+    }
+
+    /** 高度调整阶段，将水平路径转换为满足坡度约束的三维路径。 */
+    public static void adjustHeights(PlanningContext context) {
+        List<PlannedPath> paths = new ArrayList<>();
+        for (PlannedPath path : context.paths) {
+            context.builder.checkPlanningCancelled();
+            List<int[]> profile = handleHeight(
+                    context.builder, path.points(), context.level.getLevel(), path.connection());
+            if (profile != null && !profile.isEmpty()) {
+                paths.add(new PlannedPath(path.connection(), profile));
+            }
+        }
+        context.paths = paths;
+    }
+
+    /** 轨道曲线生成阶段，将调整后的路径转换为曲线和轨道放置信息并按区块保存。 */
+    public static void generateTrackCurves(PlanningContext context) {
+        for (PlannedPath path : context.paths) {
+            context.builder.checkPlanningCancelled();
+            ResultWay route = connectTrackNew4(path.points(), path.connection());
+            putChunk(context.railwayMap, route);
+        }
     }
 
     /**
@@ -30,7 +95,7 @@ public class RoutePlanner {
      * @param path 直行路径(区域内坐标)
      * @param level 服务器世界
      */
-    public List<int[]> handleHeight(RailwayBuilder builder, List<int[]> path, ServerLevel level, StationPlanner.ConnectionGenInfo con) {
+    public static List<int[]> handleHeight(RailwayBuilder builder, List<int[]> path, ServerLevel level, StationPlanner.ConnectionGenInfo con) {
         if (path == null || path.isEmpty()) {
             return null;
         }
@@ -87,7 +152,7 @@ public class RoutePlanner {
      * @param path 路线的端点
      * @return 连接后的复合曲线
      */
-    private ResultWay connectTrackNew4(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
+    private static ResultWay connectTrackNew4(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
         if (path == null)
             return null;
         // 转换为世界坐标系
@@ -164,6 +229,30 @@ public class RoutePlanner {
         result.addLine(pB, con.end());
 
         return result;
+    }
+
+    /**
+     * 添加路径到区块
+     * @param route 路径
+     */
+    private static void putChunk(RailwayMap railwayMap, ResultWay route) {
+        if (route == null)
+            return;
+        for (CurveRoute.CurveSegment segment : route.way().getSegments()) {
+            for (Vec3 p : segment.rasterize(16, 5)) {
+                int cx = (int) Math.floor(p.x);
+                int cz = (int) Math.floor(p.z);
+                if (cx >= railwayMap.regionPos.x()*CHUNK_GROUP_SIZE && cx < (railwayMap.regionPos.x()+1)*CHUNK_GROUP_SIZE && cz >= railwayMap.regionPos.z()*CHUNK_GROUP_SIZE && cz < (railwayMap.regionPos.z()+1)*CHUNK_GROUP_SIZE) {
+                    railwayMap.routeMap.computeIfAbsent(new ChunkPos(cx, cz), k -> new HashSet<>())
+                            .add(route.way());
+                }
+            }
+        }
+
+        for (TrackPutInfo track : route.trackPutInfos()) {
+            var pos = track.pos();
+            railwayMap.trackMap.computeIfAbsent(new ChunkPos(Math.floorDiv(pos.getX(), 16), Math.floorDiv(pos.getZ(), 16)), k -> new ArrayList<>()).add(track);
+        }
     }
 
     public record ResultWay(

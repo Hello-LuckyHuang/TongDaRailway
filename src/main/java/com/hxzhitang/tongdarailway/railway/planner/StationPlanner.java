@@ -39,9 +39,21 @@ public class StationPlanner {
         this.regionPos = regionPos;
     }
 
-    // 区域内站点生成
-    public static List<Pair<StationGenInfo, List<BlockPos>>> generateStation(RegionPos regionPos, ServerLevel level, long seed) {
-        return generateStation(regionPos, level, seed, RailwayBuilder.getInstance(seed));
+    /** 站点生成阶段，将站点及其原始连接信息传给后续阶段。 */
+    public static void generateStations(RoutePlanner.PlanningContext context) {
+        context.stationData = generateStation(
+                context.railwayMap.regionPos,
+                context.level.getLevel(),
+                context.level.getSeed(),
+                context.builder
+        );
+        context.railwayMap.stations.addAll(context.stationData.stream().map(Pair::getFirst).toList());
+    }
+
+    /** 站点连接阶段，匹配两端出口并保留对应的原始路网边。 */
+    public static void connectStations(RoutePlanner.PlanningContext context) {
+        var planner = new StationPlanner(context.railwayMap.regionPos);
+        context.connections = planner.generateConnections(context.stationData, context.builder);
     }
 
     public static List<Pair<StationGenInfo, List<BlockPos>>> generateStation(

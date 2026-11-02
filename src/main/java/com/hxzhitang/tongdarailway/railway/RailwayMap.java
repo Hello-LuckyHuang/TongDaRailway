@@ -4,21 +4,19 @@ import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.railway.planner.RoutePlanner;
 import com.hxzhitang.tongdarailway.railway.planner.StationPlanner;
 import com.hxzhitang.tongdarailway.structure.TrackPutInfo;
-import com.hxzhitang.tongdarailway.util.*;
-import com.mojang.datafixers.util.Pair;
+import com.hxzhitang.tongdarailway.util.CurveRoute;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.hxzhitang.tongdarailway.Tongdarailway.CHUNK_GROUP_SIZE;
+import java.util.function.Consumer;
 
 public class RailwayMap {
     public static final int samplingNum = 2; // 每个区块的采样数
@@ -34,6 +32,30 @@ public class RailwayMap {
     public final Map<ChunkPos, List<TrackPutInfo>> trackMap = new ConcurrentHashMap<>();
     //********每个区域的数据*********
 
+    /** 路线规划管线，按照枚举声明顺序执行各个阶段。 */
+    public enum PlanningStep {
+        // 站点生成
+        STATION_GENERATION(StationPlanner::generateStations),
+        // 站点连接
+        STATION_CONNECTION(StationPlanner::connectStations),
+        // 寻路
+        PATHFINDING(RoutePlanner::findPaths),
+        // 高度调整
+        HEIGHT_ADJUSTMENT(RoutePlanner::adjustHeights),
+        // 轨道曲线生成
+        TRACK_CURVE_GENERATION(RoutePlanner::generateTrackCurves);
+
+        private final Consumer<RoutePlanner.PlanningContext> operation;
+
+        PlanningStep(Consumer<RoutePlanner.PlanningContext> operation) {
+            this.operation = operation;
+        }
+
+        public void execute(RoutePlanner.PlanningContext context) {
+            operation.accept(context);
+        }
+    }
+
     public RailwayMap(RegionPos regionPos) {
         this.regionPos = regionPos;
     }
@@ -42,68 +64,16 @@ public class RailwayMap {
     public void startPlanningRoutes(WorldGenRegion level, RailwayBuilder builder) {
         builder.checkPlanningCancelled();
         try {
-            // 生成车站位置和连接规划
-            RoutePlanner routePlanner = new RoutePlanner();
-            StationPlanner stationPlanner = new StationPlanner(regionPos);
-            var stationData = StationPlanner.generateStation(
-                    regionPos, level.getLevel(), level.getSeed(), builder);
-            stations.addAll(stationData.stream().map(Pair::getFirst).toList());
-
-            var connections = stationPlanner.generateConnections(stationData, builder);
-            // 仅将已匹配双出口的连接边用于 Voronoi 划分，未匹配或仅匹配单出口的边不参与。
-            var searchDiagram = new EdgeVoronoiDiagram(
-                    connections.stream().map(StationPlanner.ConnectionGenInfo::graphEdge).toList());
-            // 每条连接只能在原始路网边对应的最近邻区域内寻路。
-            for (StationPlanner.ConnectionGenInfo connection : connections) {
+            var context = new RoutePlanner.PlanningContext(this, level, builder);
+            for (PlanningStep step : PlanningStep.values()) {
                 builder.checkPlanningCancelled();
-                int[] picStart = connection.connectStart();
-                int[] picEnd = connection.connectEnd();
-                List<int[]> way = AStarPathfinder.findPath(
-                        builder,
-                        picStart,
-                        Set.of(picEnd),
-                        regionPos,
-                        0,
-                        searchDiagram.cellFor(connection.graphEdge()),
-                        (x, z) -> builder.getHeight(x, z) < level.getSeaLevel() + 2 ? 100 : 0
-                );
-                if (way.isEmpty()) {
-                    Tongdarailway.LOGGER.warn("No path inside edge Voronoi cell for route {}", connection.graphEdge());
-                    continue;
-                }
-                // 设置出口坐标
-                var route = routePlanner.getWay(builder, way, connection, level.getLevel());
-                putChunk(route);
+                step.execute(context);
             }
         } catch (CancellationException exception) {
             throw exception;
         } catch (Exception e) {
             Tongdarailway.LOGGER.error("Err in gen route: ", e);
             throw new IllegalStateException("Railway route planning failed", e);
-        }
-    }
-
-    /**
-     * 添加路径到区块
-     * @param route 路径
-     */
-    private void putChunk(RoutePlanner.ResultWay route) {
-        if (route == null)
-            return;
-        for (CurveRoute.CurveSegment segment : route.way().getSegments()) {
-            for (Vec3 p : segment.rasterize(16, 5)) {
-                int cx = (int) Math.floor(p.x);
-                int cz = (int) Math.floor(p.z);
-                if (cx >= regionPos.x()*CHUNK_GROUP_SIZE && cx < (regionPos.x()+1)*CHUNK_GROUP_SIZE && cz >= regionPos.z()*CHUNK_GROUP_SIZE && cz < (regionPos.z()+1)*CHUNK_GROUP_SIZE) {
-                    routeMap.computeIfAbsent(new ChunkPos(cx, cz), k -> new HashSet<>())
-                            .add(route.way());
-                }
-            }
-        }
-
-        for (TrackPutInfo track : route.trackPutInfos()) {
-            var pos = track.pos();
-            trackMap.computeIfAbsent(new ChunkPos(Math.floorDiv(pos.getX(), 16), Math.floorDiv(pos.getZ(), 16)), k -> new ArrayList<>()).add(track);
         }
     }
 
