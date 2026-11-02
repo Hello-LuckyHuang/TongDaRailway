@@ -67,10 +67,7 @@ public class RoutePlanner {
         return profile;
     }
 
-    /**
-     * Applies the control-point thinning that used to live in connectTrackNew4.
-     * Keeping the same index bounds preserves the original horizontal geometry.
-     */
+    /** 使用道格拉斯－普克算法抽稀水平路径，保留首尾点和主要转折点。 */
     private static List<int[]> thinPath(List<int[]> path) {
         int convertedPointCount = path.size() - 2;
         if (convertedPointCount <= 0) {

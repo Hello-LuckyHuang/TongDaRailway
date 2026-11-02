@@ -45,20 +45,15 @@ public class RailwayMap {
             // 生成车站位置和连接规划
             RoutePlanner routePlanner = new RoutePlanner();
             StationPlanner stationPlanner = new StationPlanner(regionPos);
-            stations.addAll(
-                    StationPlanner.generateStation(
-                            regionPos,
-                            level.getLevel(),
-                            level.getSeed(),
-                            builder
-                    ).stream().map(Pair::getFirst).toList()
-            );
-            var connections = stationPlanner.generateConnections(
-                    level.getLevel(),
-                    level.getSeed(),
-                    builder
-            );
-            // 生成路线图
+            var stationData = StationPlanner.generateStation(
+                    regionPos, level.getLevel(), level.getSeed(), builder);
+            stations.addAll(stationData.stream().map(Pair::getFirst).toList());
+
+            var connections = stationPlanner.generateConnections(stationData, builder);
+            // 仅将已匹配双出口的连接边用于 Voronoi 划分，未匹配或仅匹配单出口的边不参与。
+            var searchDiagram = new EdgeVoronoiDiagram(
+                    connections.stream().map(StationPlanner.ConnectionGenInfo::graphEdge).toList());
+            // 每条连接只能在原始路网边对应的最近邻区域内寻路。
             for (StationPlanner.ConnectionGenInfo connection : connections) {
                 builder.checkPlanningCancelled();
                 int[] picStart = connection.connectStart();
@@ -69,12 +64,13 @@ public class RailwayMap {
                         Set.of(picEnd),
                         regionPos,
                         0,
-                        (x, y) -> {
-                            int scopeLimit = scopeLimit(x, y, picStart, picEnd);
-                            int heightLimit = builder.getHeight(x, y) < level.getSeaLevel() + 2 ? 100 : 0;
-                            return scopeLimit + heightLimit;
-                        }
+                        searchDiagram.cellFor(connection.graphEdge()),
+                        (x, z) -> builder.getHeight(x, z) < level.getSeaLevel() + 2 ? 100 : 0
                 );
+                if (way.isEmpty()) {
+                    Tongdarailway.LOGGER.warn("No path inside edge Voronoi cell for route {}", connection.graphEdge());
+                    continue;
+                }
                 // 设置出口坐标
                 var route = routePlanner.getWay(builder, way, connection, level.getLevel());
                 putChunk(route);
@@ -109,54 +105,6 @@ public class RailwayMap {
             var pos = track.pos();
             trackMap.computeIfAbsent(new ChunkPos(Math.floorDiv(pos.getX(), 16), Math.floorDiv(pos.getZ(), 16)), k -> new ArrayList<>()).add(track);
         }
-    }
-
-    public static int scopeLimit(int x, int z, int[] start, int[] end) {
-        final float a = 65;
-        // 限制寻路区域
-        final int maxCost = 10000; // 区域外消耗
-
-        // 计算边长 L 和 AB 方向的单位向量 u
-        float ABx = end[0] - start[0];
-        float ABz = end[1] - start[1];
-        float L = (float) Math.sqrt(ABx * ABx + ABz * ABz);
-        if (L == 0) return maxCost; // 退化成点
-
-        float ux = ABx / L;
-        float uz = ABz / L;
-
-        // 计算垂直于 AB 方向的单位向量 v（旋转 a 度）
-        // 使用 Vec3 的 yRot 方法绕 y 轴旋转
-        Vec3 uVec = new Vec3(ux, 0, uz);
-        // 绕 y 轴旋转 a 度得到 AD 方向
-        Vec3 vVec = uVec.yRot((float) Math.toRadians(a));
-
-        // 四个顶点（按照逆时针顺序）
-        float Ax = start[0], Az = start[1];
-        float Bx = end[0],   Bz = end[1];
-        float Cx = (float) (Bx + vVec.x * L);
-        float Cz = (float) (Bz + vVec.z * L);
-        float Dx = (float) (Ax + vVec.x * L);
-        float Dz = (float) (Az + vVec.z * L);
-
-        // 对四条边做叉积判断（逆时针排列，内部侧叉积 >= 0）
-        // 边 AB
-        float cross1 = (Bx - Ax) * (z - Az) - (Bz - Az) * (x - Ax);
-        if (cross1 < 0) return maxCost;
-
-        // 边 BC
-        float cross2 = (Cx - Bx) * (z - Bz) - (Cz - Bz) * (x - Bx);
-        if (cross2 < 0) return maxCost;
-
-        // 边 CD
-        float cross3 = (Dx - Cx) * (z - Cz) - (Dz - Cz) * (x - Cx);
-        if (cross3 < 0) return maxCost;
-
-        // 边 DA
-        float cross4 = (Ax - Dx) * (z - Dz) - (Az - Dz) * (x - Dx);
-        if (cross4 < 0) return maxCost;
-
-        return 0;
     }
 
     public CompoundTag toNBT() {

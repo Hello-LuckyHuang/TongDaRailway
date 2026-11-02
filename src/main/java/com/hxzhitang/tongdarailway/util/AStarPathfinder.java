@@ -5,8 +5,7 @@ import com.hxzhitang.tongdarailway.railway.RegionPos;
 
 import java.util.*;
 
-// 参考：URL_ADDRESS// 参考：https://www.redblobgames.com/pathfinding/a-star/introduction.html
-import java.util.*;
+// 参考：https://www.redblobgames.com/pathfinding/a-star/introduction.html
 
 public class AStarPathfinder {
 
@@ -21,22 +20,34 @@ public class AStarPathfinder {
     };
     private static final int PATH_STEP = 12;
     private static final int NO_DIRECTION = -1;
-    private static final double DIRECTION_CHANGE_COST = 15;
+    // 降低转弯惩罚，让路线更灵活地绕开陡坡。
+    private static final double DIRECTION_CHANGE_COST = 5;
 
-    public static List<int[]> findPath(RailwayBuilder builder, int[] start, Set<int[]> end, RegionPos center, int region_l1_limit, AdditionalCostFunction additionalCostFunction) {
-        if (builder == null || start == null || start.length < 2 || center == null || additionalCostFunction == null) {
+    /** 在生成区域内，仅搜索当前路网边的 Voronoi 区域，区域外节点不会参与代价计算。 */
+    public static List<int[]> findPath(
+            RailwayBuilder builder,
+            int[] start,
+            Set<int[]> end,
+            RegionPos center,
+            int region_l1_limit,
+            EdgeVoronoiDiagram.Cell searchRange,
+            AdditionalCostFunction additionalCostFunction
+    ) {
+        if (builder == null || start == null || start.length < 2 || center == null || searchRange == null || additionalCostFunction == null) {
             return new ArrayList<>();
         }
         if (end == null || end.isEmpty()) {
             return new ArrayList<>();
         }
-        if (!isWithinRegionRange(start[0], start[1], center, region_l1_limit)) {
+        if (!isWithinRegionRange(start[0], start[1], center, region_l1_limit)
+                || !searchRange.contains(start[0], start[1])) {
             return new ArrayList<>();
         }
 
         List<int[]> validEnds = new ArrayList<>();
         for (int[] target : end) {
-            if (target != null && target.length >= 2 && isWithinRegionRange(target[0], target[1], center, region_l1_limit)) {
+            if (target != null && target.length >= 2 && isWithinRegionRange(target[0], target[1], center, region_l1_limit)
+                    && searchRange.contains(target[0], target[1])) {
                 validEnds.add(target);
             }
         }
@@ -69,7 +80,7 @@ public class AStarPathfinder {
                 continue;
             }
 
-            int[] reachedTarget = findReachedTarget(currentX, currentY, validEnds, PATH_STEP);
+            int[] reachedTarget = findReachedTarget(currentX, currentY, validEnds, PATH_STEP, searchRange);
             if (reachedTarget != null) {
                 return reconstructPath(current, start, reachedTarget);
             }
@@ -78,7 +89,10 @@ public class AStarPathfinder {
                 int[] direction = DIRECTIONS[i];
                 int newX = currentX + direction[0] * PATH_STEP;
                 int newY = currentY + direction[1] * PATH_STEP;
-                if (!isWithinRegionRange(newX, newY, center, region_l1_limit)) {
+                // 生成区域提供有限边界，边 Voronoi 区域则是不可越过的寻路硬约束。
+                // 检查整段步进，避免对角移动跨出边界后又落回合法节点。
+                if (!isWithinRegionRange(newX, newY, center, region_l1_limit)
+                        || !searchRange.containsSegment(currentX, currentY, newX, newY)) {
                     continue;
                 }
                 NodeKey neighborKey = new NodeKey(newX, newY, i);
@@ -87,7 +101,9 @@ public class AStarPathfinder {
                 double directionChangeCost = current.directionIndex != NO_DIRECTION && current.directionIndex != i
                         ? DIRECTION_CHANGE_COST
                         : 0.0;
-                double heightCost = Math.abs(builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY));
+                // 高差代价按平方增长，上坡和下坡均加重对较大高差的惩罚。
+                double heightDifference = (double) builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY);
+                double heightCost = heightDifference * heightDifference;
                 double tentativeG = current.g + movementCost + directionChangeCost + heightCost + additionalCostFunction.cost(currentX, currentY);
                 double oldNeighborG = gScore.getOrDefault(neighborKey, Double.MAX_VALUE);
 
@@ -120,7 +136,7 @@ public class AStarPathfinder {
         return minDistance;
     }
 
-    private static int[] findReachedTarget(int x, int y, List<int[]> targets, int step) {
+    private static int[] findReachedTarget(int x, int y, List<int[]> targets, int step, EdgeVoronoiDiagram.Cell searchRange) {
         int stepSquared = step * step;
         int[] best = null;
         int bestDist = Integer.MAX_VALUE;
@@ -128,7 +144,9 @@ public class AStarPathfinder {
             int dx = x - target[0];
             int dy = y - target[1];
             int dist = dx * dx + dy * dy;
-            if (dist <= stepSquared && dist < bestDist) {
+            // 最后一步直接连接目标时，也必须保证整条连接位于当前边的区域内。
+            if (dist <= stepSquared && dist < bestDist
+                    && searchRange.containsSegment(x, y, target[0], target[1])) {
                 best = target;
                 bestDist = dist;
             }

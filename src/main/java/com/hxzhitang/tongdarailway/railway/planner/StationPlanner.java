@@ -5,6 +5,7 @@ import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
 import com.hxzhitang.tongdarailway.railway.RegionPos;
 import com.hxzhitang.tongdarailway.structure.ModStructureManager;
 import com.hxzhitang.tongdarailway.structure.StationTemplate;
+import com.hxzhitang.tongdarailway.util.EdgeVoronoiDiagram;
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.QuartPos;
@@ -124,22 +125,16 @@ public class StationPlanner {
         return result;
     }
 
-    // 路线连接规则生成
+    /** 复用已生成的站点和路网，保证寻路区域与出口匹配使用同一份图。 */
     public List<ConnectionGenInfo> generateConnections(
-            ServerLevel level,
-            long seed,
+            List<Pair<StationGenInfo, List<BlockPos>>> thisStations,
             RailwayBuilder builder
     ) {
         builder.checkPlanningCancelled();
         List<ConnectionGenInfo> result = new ArrayList<>();
         Map<Integer, List<StationTemplate.Exit>> connect = new HashMap<>();
-
-        List<Pair<StationGenInfo, List<BlockPos>>> thisStations = generateStation(
-                regionPos,
-                level,
-                seed,
-                builder
-        );
+        // 保存线路 ID 对应的原始边坐标，用于 Voronoi 区域计算。
+        Map<Integer, EdgeVoronoiDiagram.Edge> graphEdges = new HashMap<>();
 
         for (Pair<StationGenInfo, List<BlockPos>> stationGen : thisStations) {
             var station = stationGen.getFirst();
@@ -151,6 +146,8 @@ public class StationPlanner {
                 var con = exitBlockPosPair.getSecond();
                 int id = generateLineId(station.placePos.getX(), station.placePos.getZ(), con.getX(), con.getZ());
                 connect.computeIfAbsent(id, k -> new ArrayList<>()).add(exit);
+                graphEdges.putIfAbsent(id, new EdgeVoronoiDiagram.Edge(
+                        station.placePos.getX(), station.placePos.getZ(), con.getX(), con.getZ()));
             }
 
 //            var tpos = station.placePos;
@@ -168,7 +165,8 @@ public class StationPlanner {
                         Vec3.atLowerCornerOf(exitB.exitPos()),
                         exitB.dir(),
                         exitA.pushAway(exitB.exitPos().getCenter()),
-                        exitB.pushAway(exitA.exitPos().getCenter())
+                        exitB.pushAway(exitA.exitPos().getCenter()),
+                        graphEdges.get(id)
                 ));
             }
         });
@@ -409,6 +407,7 @@ public class StationPlanner {
      * @param endDir       终点方向
      * @param connectStart 寻路起点
      * @param connectEnd   寻路终点
+     * @param graphEdge    原始路网边，用来选择对应的最近邻区域
      */ // 路线连接信息(世界坐标系)
     public record ConnectionGenInfo(
             Vec3 start,
@@ -416,7 +415,8 @@ public class StationPlanner {
             Vec3 end,
             Vec3 endDir,
             int[] connectStart,
-            int[] connectEnd
+            int[] connectEnd,
+            EdgeVoronoiDiagram.Edge graphEdge
     ) {
 
     }
