@@ -2,6 +2,7 @@ package com.hxzhitang.tongdarailway.railway;
 
 import com.hxzhitang.tongdarailway.Tongdarailway;
 import com.hxzhitang.tongdarailway.util.AdaptiveHeightSampler;
+import com.hxzhitang.tongdarailway.util.HeightSampler;
 import com.hxzhitang.tongdarailway.util.ModSaveData;
 import net.minecraft.core.QuartPos;
 import net.minecraft.server.MinecraftServer;
@@ -9,7 +10,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.ChunkGenerator;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.neoforged.neoforge.common.Tags;
 
@@ -36,6 +36,8 @@ public class RailwayBuilder {
     private final Map<RegionPos, Future<?>> regionFutures = new ConcurrentHashMap<>();
     public final Map<RegionPos, RailwayMap> regionRailways = new ConcurrentHashMap<>();
     public final Map<RegionPos, int[][]> regionHeightMap = new ConcurrentHashMap<>();
+    private final Map<net.minecraft.resources.ResourceKey<Level>, HeightSampler> heightSamplers =
+            new ConcurrentHashMap<>();
     private final Map<net.minecraft.resources.ResourceKey<Level>, ConcurrentMap<Long, Integer>> exactHeightCache =
             new ConcurrentHashMap<>();
     private final Map<net.minecraft.resources.ResourceKey<Level>, ConcurrentMap<Long, Boolean>> oceanBiomeCache =
@@ -136,6 +138,7 @@ public class RailwayBuilder {
                 regionRailways.clear();
                 regionHeightMap.clear();
                 exactHeightCache.clear();
+                heightSamplers.clear();
                 oceanBiomeCache.clear();
             }
         }
@@ -262,8 +265,8 @@ public class RailwayBuilder {
     }
 
     /**
-     * Returns an exact world-surface height and caches it for every planning stage.
-     * The cache is dimension-aware because planning can query more than one level.
+     * 获取采样地形高度，并缓存结果供各个规划阶段复用。
+     * 规划可能查询多个世界，因此按维度隔离缓存。
      */
     public int getExactHeight(ServerLevel serverLevel, int wx, int wz) {
         checkPlanningCancelled();
@@ -272,17 +275,10 @@ public class RailwayBuilder {
                 ignored -> new ConcurrentHashMap<>()
         );
         long key = ((long) wx << 32) ^ (wz & 0xffffffffL);
-        return dimensionCache.computeIfAbsent(key, ignored -> {
-            ChunkGenerator generator = serverLevel.getChunkSource().getGenerator();
-            RandomState randomState = serverLevel.getChunkSource().randomState();
-            return generator.getBaseHeight(
-                    wx,
-                    wz,
-                    Heightmap.Types.WORLD_SURFACE,
-                    serverLevel,
-                    randomState
-            );
-        });
+        return dimensionCache.computeIfAbsent(key, ignored -> heightSamplers.computeIfAbsent(
+                serverLevel.dimension(),
+                dimension -> HeightSampler.forLevel(serverLevel)
+        ).getHeight(wx, wz));
     }
 
     /** Returns whether the quart containing the position has an ocean biome. */
@@ -314,7 +310,7 @@ public class RailwayBuilder {
     private int[][] getHeightMap(ServerLevel serverLevel, RegionPos regionPos) {
         // 高度自适应采样地形高度图
         // 创建采样器：阈值=10，最大层数=3，每个节点4x4采样
-        AdaptiveHeightSampler sampler = new AdaptiveHeightSampler(10, 2, 4, (x, z) -> {
+        AdaptiveHeightSampler sampler = new AdaptiveHeightSampler(10, 4, 4, (x, z) -> {
             int wx = (int) (x * (16.0 / samplingNum) + regionPos.x() * CHUNK_GROUP_SIZE * 16);
             int wz = (int) (z * (16.0 / samplingNum) + regionPos.z() * CHUNK_GROUP_SIZE * 16);
             return getExactHeight(serverLevel, wx, wz);
