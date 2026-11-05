@@ -18,12 +18,13 @@ public class AStarPathfinder {
             1.0, 1.0, 1.0, 1.0,
             1.414, 1.414, 1.414, 1.414
     };
-    private static final int PATH_STEP = 12;
+    private static final int PATH_STEP = 16;
     private static final int NO_DIRECTION = -1;
     // 降低转弯惩罚，让路线更灵活地绕开陡坡。
     private static final double DIRECTION_CHANGE_COST = 5;
+    private static final double OUT_OF_RANGE_COST = 1000.0;
 
-    /** 在生成区域内，仅搜索当前路网边的 Voronoi 区域，区域外节点不会参与代价计算。 */
+    /** 区域与 Voronoi 范围外的移动增加有限代价，仍参与正常 A* 搜索。 */
     public static List<int[]> findPath(
             RailwayBuilder builder,
             int[] start,
@@ -39,15 +40,9 @@ public class AStarPathfinder {
         if (end == null || end.isEmpty()) {
             return new ArrayList<>();
         }
-        if (!isWithinRegionRange(start[0], start[1], center, region_l1_limit)
-                || !searchRange.contains(start[0], start[1])) {
-            return new ArrayList<>();
-        }
-
         List<int[]> validEnds = new ArrayList<>();
         for (int[] target : end) {
-            if (target != null && target.length >= 2 && isWithinRegionRange(target[0], target[1], center, region_l1_limit)
-                    && searchRange.contains(target[0], target[1])) {
+            if (target != null && target.length >= 2) {
                 validEnds.add(target);
             }
         }
@@ -80,7 +75,7 @@ public class AStarPathfinder {
                 continue;
             }
 
-            int[] reachedTarget = findReachedTarget(currentX, currentY, validEnds, PATH_STEP, searchRange);
+            int[] reachedTarget = findReachedTarget(currentX, currentY, validEnds, PATH_STEP);
             if (reachedTarget != null) {
                 return reconstructPath(current, start, reachedTarget);
             }
@@ -89,12 +84,10 @@ public class AStarPathfinder {
                 int[] direction = DIRECTIONS[i];
                 int newX = currentX + direction[0] * PATH_STEP;
                 int newY = currentY + direction[1] * PATH_STEP;
-                // 生成区域提供有限边界，边 Voronoi 区域则是不可越过的寻路硬约束。
-                // 检查整段步进，避免对角移动跨出边界后又落回合法节点。
-                if (!isWithinRegionRange(newX, newY, center, region_l1_limit)
-                        || !searchRange.containsSegment(currentX, currentY, newX, newY)) {
-                    continue;
-                }
+                // 范围外只增加代价，不跳过节点，保证搜索图仍然连通。
+                double rangeCost = !isWithinRegionRange(newX, newY, center, region_l1_limit)
+                        || !searchRange.containsSegment(currentX, currentY, newX, newY)
+                        ? OUT_OF_RANGE_COST : 0.0;
                 NodeKey neighborKey = new NodeKey(newX, newY, i);
 
                 double movementCost = MOVEMENT_COST[i] * PATH_STEP;
@@ -104,7 +97,8 @@ public class AStarPathfinder {
                 // 高差代价按平方增长，上坡和下坡均加重对较大高差的惩罚。
                 double heightDifference = (double) builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY);
                 double heightCost = heightDifference * heightDifference;
-                double tentativeG = current.g + movementCost + directionChangeCost + heightCost + additionalCostFunction.cost(currentX, currentY);
+                double tentativeG = current.g + movementCost + directionChangeCost + heightCost
+                        + rangeCost + additionalCostFunction.cost(currentX, currentY);
                 double oldNeighborG = gScore.getOrDefault(neighborKey, Double.MAX_VALUE);
 
                 if (tentativeG < oldNeighborG) {
@@ -136,7 +130,7 @@ public class AStarPathfinder {
         return minDistance;
     }
 
-    private static int[] findReachedTarget(int x, int y, List<int[]> targets, int step, EdgeVoronoiDiagram.Cell searchRange) {
+    private static int[] findReachedTarget(int x, int y, List<int[]> targets, int step) {
         int stepSquared = step * step;
         int[] best = null;
         int bestDist = Integer.MAX_VALUE;
@@ -144,9 +138,8 @@ public class AStarPathfinder {
             int dx = x - target[0];
             int dy = y - target[1];
             int dist = dx * dx + dy * dy;
-            // 最后一步直接连接目标时，也必须保证整条连接位于当前边的区域内。
-            if (dist <= stepSquared && dist < bestDist
-                    && searchRange.containsSegment(x, y, target[0], target[1])) {
+            // 最后一步允许跨越范围边界，避免在终点附近被硬限制阻断。
+            if (dist <= stepSquared && dist < bestDist) {
                 best = target;
                 bestDist = dist;
             }

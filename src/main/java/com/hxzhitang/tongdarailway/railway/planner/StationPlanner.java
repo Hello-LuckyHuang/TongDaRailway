@@ -12,11 +12,14 @@ import net.minecraft.core.QuartPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.Tags;
 
 import java.util.*;
+
+import static com.hxzhitang.tongdarailway.Tongdarailway.HEIGHT_MAX_INCREMENT;
 
 /**
  * 路线图大致生成步骤：
@@ -89,32 +92,40 @@ public class StationPlanner {
                 (x, z) -> {
                     try {
                         var biome = gen.getBiomeSource().getNoiseBiome(QuartPos.fromBlock((int) x), QuartPos.fromBlock(65), QuartPos.fromBlock((int) z), cfg.sampler());
-                        return !biome.is(Tags.Biomes.IS_OCEAN) && !biome.is(Tags.Biomes.IS_RIVER);
+                        return !biome.is(Tags.Biomes.IS_OCEAN);
                     } catch (NullPointerException e) {
                         return true;
                     }
                 }
         );
 
-        List<StationElevationPlanner.StationElevation> elevations = builder == null
-                ? null
-                : StationElevationPlanner.plan(nodes, builder, level);
-
-        for (int nodeIndex = 0; nodeIndex < nodes.size(); nodeIndex++) {
-            RouteGraph.NodeData node = nodes.get(nodeIndex);
-            StationElevationPlanner.StationElevation elevation = elevations == null
-                    ? null
-                    : elevations.get(nodeIndex);
+        for (RouteGraph.NodeData node : nodes) {
             int x = (int) node.point.x;
             int z = (int) node.point.z;
-            int h = elevation == null ? 0 : elevation.height();
+            int y = gen.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE, level, cfg);
+            // 使得站点的高度在一定区域内最小
+            int miny = 2550;
+            int h = y;
+            for (int ix = -2; ix < 3; ix++) {
+                for (int iz = -2; iz < 3; iz++) {
+                    int ox = ix * 9 + x;
+                    int oz = iz * 9 + z;
+                    int ty = gen.getBaseHeight(ox, oz, Heightmap.Types.WORLD_SURFACE, level, cfg);
+                    miny = Math.min(miny, ty);
+                }
+            }
+            if (y - miny > 20)
+                h = miny;
+            // 确保站点高度在 seaLevel ~ seaLevel + 增量
+            h = Math.max(h, level.getSeaLevel());
+            h = Math.min(h, level.getSeaLevel() + HEIGHT_MAX_INCREMENT);
             node.setPointY(h);
 
             // 根据高度决定生成地上还是地下车站
             int exitNum = node.connected.size() >= 3 ? 4 : 2;
             StationTemplate station;
             long stationSeed = regionSeed + x* 3L + z* 7L;
-            if (elevation != null && elevation.underground()) {
+            if (h < y - 20) {
                 station = ModStructureManager.getRandomUnderGroundStation(stationSeed, exitNum);
             } else {
                 station = ModStructureManager.getRandomNormalStation(stationSeed, exitNum);

@@ -85,7 +85,7 @@ public class RoutePlanner {
     public static void generateTrackCurves(PlanningContext context) {
         for (PlannedPath path : context.paths) {
             context.builder.checkPlanningCancelled();
-            ResultWay route = connectTrackNew4(path.points(), path.connection());
+            ResultWay route = connectTrackNew5(path.points(), path.connection());
             putChunk(context.railwayMap, route);
         }
     }
@@ -99,7 +99,7 @@ public class RoutePlanner {
         if (path == null || path.isEmpty()) {
             return null;
         }
-        path = thinPath(path);
+//        path = thinPath(path);
         if (path.isEmpty()) {
             return null;
         }
@@ -132,47 +132,53 @@ public class RoutePlanner {
         return profile;
     }
 
-    /** 使用道格拉斯－普克算法抽稀水平路径，保留首尾点和主要转折点。 */
-    private static List<int[]> thinPath(List<int[]> path) {
-        int convertedPointCount = path.size() - 2;
-        if (convertedPointCount <= 0) {
-            return List.of();
-        }
-
-        List<int[]> thinned = new ArrayList<>();
-        for (int i = 0; i < convertedPointCount - 7; i += 4) {
-            thinned.add(path.get(i));
-        }
-        thinned.add(path.get(convertedPointCount - 1));
-        return thinned;
-    }
-
     /**
      * 将直线路径段通过三阶贝塞尔曲线平滑连接
      * @param path 路线的端点
      * @return 连接后的复合曲线
      */
-    private static ResultWay connectTrackNew4(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
+    private static ResultWay connectTrackNew5(List<int[]> path, StationPlanner.ConnectionGenInfo con) {
         if (path == null)
             return null;
         // 转换为世界坐标系
         List<Vec3> path1 = new ArrayList<>();
-        for (int[] point : path) {
-            path1.add(new Vec3(point[0], point[2], point[1]));
+        List<Vec3> dir = new ArrayList<>();
+        for (int i = 1; i < path.size()-3; i++) {
+            var p0 = path.get(i);
+            var p1 = path.get(i+1);
+            Vec3 a = new Vec3(p0[0], p0[2], p0[1]);
+            Vec3 b = new Vec3(p1[0], p1[2], p1[1]);
+            Vec3 c = a.add(b).scale(0.5);
+            path1.add(new Vec3((int) c.x, (int) c.y, (int) c.z));
+            dir.add(MyMth.get8Dir(b.subtract(a)));
         }
+//        for (int[] point : path) {
+//            path1.add(new Vec3(point[0], point[2], point[1]));
+//        }
 
         // 连接线路和车站
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
-        Vec3 pA = con.start().add(con.startDir().scale(30));
-        path1.addFirst(pA);
+//        Vec3 pA = con.start();//con.start().add(con.startDir().scale(30));
+//        path1.addFirst(pA);
+//        dir.addFirst(con.startDir());
+//
+//        Vec3 pB = con.end();//con.end().add(con.endDir().scale(30));
+//        path1.addLast(pB);
+//        dir.addLast(con.endDir().reverse());
 
-        Vec3 pB = con.end().add(con.endDir().scale(30));
-        path1.addLast(pB);
+//        result.connectWay2(con.start(), path1.getFirst(), con.startDir(), dir.getFirst().reverse(), true);
 
-        result.addLine(con.start(), pA);
+        for (int i = 0; i < path1.size()-1; i++) {
+            var p0 = path1.get(i);
+            var p1 = path1.get(i+1);
+            var d0 = dir.get(i);
+            var d1 = dir.get(i+1).reverse();
+            result.connectWay(p0, p1, d0, d1, true);
+        }
 
+        /*
         Vec3 startDir = con.startDir();
         Vec3 endDir;
         for (int i = 0; i < path1.size() - 1; i++) {
@@ -202,7 +208,7 @@ public class RoutePlanner {
                 Vec3 d = aPos.subtract(start).multiply(1, 0, 1).normalize();
                 double dot = startDir.dot(d);
                 double cross = startDir.x * d.z - startDir.z * d.x;
-                boolean maximiseTurn = start.y == end.y;
+                boolean maximiseTurn = true;//start.y == end.y;
 
                 if (Mth.equal(dot, 1)) {
                     // 前方 直线
@@ -223,10 +229,11 @@ public class RoutePlanner {
                 result.connectWay(start, end, startDir, endDir, start.y == end.y);
             }
             startDir = endDir.reverse();
-        }
+        }*/
 
         // 终点车站连接
-        result.addLine(pB, con.end());
+//        result.addLine(pB, con.end());
+//        result.connectWay(path1.getLast(), con.end(), dir.getLast(), con.endDir(), true);
 
         return result;
     }
@@ -260,53 +267,143 @@ public class RoutePlanner {
             List<TrackPutInfo> trackPutInfos
     ) {
         public void connectWay(Vec3 start, Vec3 end, Vec3 startDir, Vec3 endDir, boolean maximiseTurn) {
-            int h0 = (int) start.y;
-            int h1 = (int) ((2*start.y + end.y) / 3);
-            int h2 = (int) ((start.y + 2*end.y) / 3);
-            int h3 = (int) end.y;
-            Vec3 s = new Vec3(start.x, h1, start.z);
-            Vec3 e = new Vec3(end.x, h1, end.z);
-            var connect = getConnect(BlockPos.containing(s), BlockPos.containing(e), startDir, endDir, maximiseTurn);
-            if (connect != null) {
-                if (connect.startExtent < 3) {
-                    h1 = h0;
-                }
-                if (connect.endExtent < 3) {
-                    h2 = h3;
-                }
-
-                Vec3 lStart = new Vec3(start.x, h0, start.z);
-                Vec3 bStart = new Vec3(connect.startPos.x, h1, connect.startPos.z);
-                Vec3 bEnd = new Vec3(connect.endPos.x, h2, connect.endPos.z);
-                Vec3 lEnd = new Vec3(end.x, h3, end.z);
-
-                if (connect.startExtent != 0) {
-                    addBezier(lStart, startDir, bStart.subtract(lStart), startDir.reverse());
-                }
-                addBezier(bStart, startDir, bEnd.subtract(bStart), endDir);
-                if (connect.endExtent != 0) {
-                    addBezier(bEnd, endDir.reverse(), lEnd.subtract(bEnd), endDir);
-                }
-            } else {
-                // 强行连接
-                addBezier(start, startDir, end.subtract(start), endDir);
+            boolean success = connectWayNormal(start, end, startDir, endDir, maximiseTurn);
+            if (!success) {
+                connectWayForce(start, end, startDir, endDir);
                 Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect. {} {}", start, end);
             }
         }
 
-        private static ConnectInfo getConnect(BlockPos pos1, BlockPos pos2, Vec3 axis1, Vec3 axis2, boolean maximiseTurn) {
-            Vec3 normal2 = new Vec3(0, 1, 0);
+        public void connectWay2(Vec3 start, Vec3 end, Vec3 startDir, Vec3 endDir, boolean maximiseTurn) {
+            boolean success = connectWayNormal(start, end, startDir, endDir, maximiseTurn);
+
+            if (!success) {
+                int len = (int) (start.distanceTo(end) / 2) - 2;
+                Vec3 aPos = (start.add(startDir.scale(len)).add(end.add(endDir.scale(len)))).scale(0.5);
+                aPos = new Vec3((int) aPos.x(), (int) aPos.y(), (int) aPos.z());
+                Vec3 aDir;
+                Vec3 d = aPos.subtract(start).multiply(1, 0, 1).normalize();
+                double dot = startDir.dot(d);
+                double cross = startDir.x * d.z - startDir.z * d.x;
+
+                if (Mth.equal(dot, 1)) {
+                    // 前方 直线
+                    connectWay(start, end, startDir, endDir, maximiseTurn);
+                    return;
+                } else if (dot > 0.78) {
+                    // 斜前方 135度钝角
+                    aDir = MyMth.rotateAroundY(startDir, cross, 45);
+                } else {
+                    // 侧前方 90度直角
+                    aDir = MyMth.rotateAroundY(startDir, cross, 90);
+                }
+
+                // 连接或强行连接
+                if(!connectWayNormal(start, aPos, startDir, aDir.reverse(), maximiseTurn)) {
+                    connectWayForce(start, aPos, startDir, aDir.reverse());
+                    Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect (-1). {} {}", start, end);
+                }
+                if(!connectWayNormal(aPos, end, aDir, endDir, maximiseTurn)) {
+                    connectWayForce(aPos, end, aDir, endDir);
+                    Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect (-2). {} {}", start, end);
+                }
+            }
+        }
+
+        public boolean connectWayNormal(Vec3 start, Vec3 end, Vec3 startDir, Vec3 endDir, boolean maximiseTurn) {
+            BlockPos pos1 = BlockPos.containing(start);
+            BlockPos pos2 = BlockPos.containing(end);
+            ConnectInfo connect = getConnect(pos1, pos2, startDir, endDir, maximiseTurn);
+            if (connect == null)
+                return false;
+
+            Vec3 axis1 = connect.startAxis;
+            Vec3 axis2 = connect.endAxis;
+            Vec3 normedAxis1 = axis1.normalize();
             Vec3 normedAxis2 = axis2.normalize();
 
-            Vec3 normedAxis1 = axis1.normalize();
-            Vec3 normal1 = new Vec3(0, 1, 0);
+            if (connect.skipCurve) {
+                addStraightTracks(pos1, axis1, connect.startExtent);
+                addStraightTracks(pos2, axis2, connect.endExtent);
+                way.addSegment(new CurveRoute.LineSegment(
+                        start,
+                        end
+                ));
+                return true;
+            }
 
+            // 曲线端点由 Bezier TrackPutInfo 放置，因此这里只添加端点前的延伸直轨。
+            addStraightTracks(pos1, axis1, connect.startExtent);
+            addStraightTracks(pos2, axis2, connect.endExtent);
+
+            BlockPos curveStartPos = connect.startPos;
+            BlockPos curveEndPos = connect.endPos;
+            Vec3 curveStart = Vec3.atLowerCornerOf(curveStartPos);
+            Vec3 curveEnd = Vec3.atLowerCornerOf(curveEndPos);
+            Vec3 endOffset = curveEnd.subtract(curveStart);
+            trackPutInfos.add(TrackPutInfo.getByDir(
+                    curveStartPos,
+                    axis1,
+                    new TrackPutInfo.BezierInfo(curveStart, normedAxis1, endOffset, normedAxis2)
+            ));
+
+            if (connect.startExtent != 0)
+                way.addSegment(new CurveRoute.LineSegment(start, curveStart));
+            way.addSegment(CurveRoute.BezierSegment.getCubicBezier(
+                    curveStart, normedAxis1, curveEnd.subtract(curveStart), normedAxis2));
+            if (connect.endExtent != 0)
+                way.addSegment(new CurveRoute.LineSegment(curveEnd, end));
+            return true;
+        }
+
+        /** 无视 Create 的合法性限制，直接生成一段三阶贝塞尔连接。 */
+        public void connectWayForce(Vec3 start, Vec3 end, Vec3 startDir, Vec3 endDir) {
+            Vec3 endOffset = end.subtract(start);
+            way.addSegment(CurveRoute.BezierSegment.getCubicBezier(start, startDir, endOffset, endDir));
+            trackPutInfos.add(TrackPutInfo.getByDir(
+                    BlockPos.containing(start),
+                    startDir,
+                    new TrackPutInfo.BezierInfo(start, startDir, endOffset, endDir)
+            ));
+        }
+
+        private void addStraightTracks(BlockPos start, Vec3 axis, int count) {
+            for (int i = 0; i < count; i++) {
+                BlockPos pos = start.offset(BlockPos.containing(axis.scale(i)));
+                trackPutInfos.add(TrackPutInfo.getByDir(pos, axis, null));
+            }
+        }
+
+        private static ConnectInfo getConnect(BlockPos pos1, BlockPos pos2, Vec3 requestedAxis1,
+                                              Vec3 requestedAxis2, boolean maximiseTurn) {
+            Vec3 axis1 = horizontalTrackAxis(requestedAxis1);
+            Vec3 axis2 = horizontalTrackAxis(requestedAxis2);
+            if (axis1 == null || axis2 == null || pos1.equals(pos2))
+                return null;
+            if (pos1.distSqr(pos2) > 256 * 256)
+                return null;
+
+            Vec3 normedAxis2 = axis2.normalize();
+            Vec3 normedAxis1 = axis1.normalize();
             Vec3 end1 = MyMth.getCurveStart(pos1, axis1);
             Vec3 end2 = MyMth.getCurveStart(pos2, axis2);
+
+            if (axis1.dot(end2.subtract(end1)) < 0) {
+                axis1 = axis1.scale(-1);
+                normedAxis1 = normedAxis1.scale(-1);
+                end1 = MyMth.getCurveStart(pos1, axis1);
+            }
 
             double[] intersect = VecHelper.intersect(end1, end2, normedAxis1, normedAxis2, Direction.Axis.Y);
             boolean parallel = intersect == null;
             boolean skipCurve = false;
+
+            if ((parallel && normedAxis1.dot(normedAxis2) > 0)
+                    || (!parallel && (intersect[0] < 0 || intersect[1] < 0))) {
+                axis2 = axis2.scale(-1);
+                normedAxis2 = normedAxis2.scale(-1);
+                end2 = MyMth.getCurveStart(pos2, axis2);
+            }
 
             Vec3 cross2 = normedAxis2.cross(new Vec3(0, 1, 0));
 
@@ -332,14 +429,7 @@ public class RoutePlanner {
                     skipCurve = Mth.equal(u, 0);
 
                     if (!skipCurve && sTest[0] < 0)
-                        return new ConnectInfo(
-                                new Vec3(pos1.getX(), pos1.getY(), pos1.getZ()),
-                                axis1,
-                                new Vec3(pos2.getX(), pos2.getY(), pos2.getZ()),
-                                axis2,
-                                end1Extent,
-                                end2Extent
-                        );
+                        return null;
 
                     if (skipCurve) {
                         dist = VecHelper.getCenterOf(pos1)
@@ -347,7 +437,7 @@ public class RoutePlanner {
                         end1Extent = (int) Math.round((dist + 1) / axis1.length());
 
                     } else {
-                        if (!Mth.equal(ascend, 0) || normedAxis1.y != 0)
+                        if (!Mth.equal(ascend, 0))
                             return null;
 
                         double targetT = u <= 1 ? 3 : u * 2;
@@ -426,23 +516,43 @@ public class RoutePlanner {
                 }
                 end1Extent = Mth.floor(ex1);
                 end2Extent = Mth.floor(ex2);
-                turnSize = turnSizeToFitAscend;
             }
 
             Vec3 offset1 = axis1.scale(end1Extent);
             Vec3 offset2 = axis2.scale(end2Extent);
-            BlockPos startPos = pos1.offset(MyMth.myCeil(offset1));
-            BlockPos endPos = pos2.offset(MyMth.myCeil(offset2));
+            BlockPos startPos = pos1.offset(BlockPos.containing(offset1));
+            BlockPos endPos = pos2.offset(BlockPos.containing(offset2));
 
             return new ConnectInfo(
-                    new Vec3(startPos.getX(), startPos.getY(), startPos.getZ()),
+                    startPos,
                     axis1,
-                    new Vec3(endPos.getX(), endPos.getY(), endPos.getZ()),
+                    endPos,
                     axis2,
                     end1Extent,
-                    end2Extent
+                    end2Extent,
+                    skipCurve
             );
         }
+
+        /** 将归一化方向还原为 Create 的 TrackShape 所使用的整数轨道轴。 */
+        private static Vec3 horizontalTrackAxis(Vec3 axis) {
+            if (axis == null || !Double.isFinite(axis.x) || !Double.isFinite(axis.y)
+                    || !Double.isFinite(axis.z) || !Mth.equal(axis.y, 0))
+                return null;
+
+            double x = Math.abs(axis.x);
+            double z = Math.abs(axis.z);
+            boolean hasX = !Mth.equal(x, 0);
+            boolean hasZ = !Mth.equal(z, 0);
+            if (!hasX && !hasZ)
+                return null;
+            if (hasX && hasZ && Math.abs(x - z) > 1e-6)
+                return null;
+
+            return new Vec3(hasX ? Math.copySign(1, axis.x) : 0, 0,
+                    hasZ ? Math.copySign(1, axis.z) : 0);
+        }
+
         public void addLine(Vec3 start, Vec3 end) {
             way.addSegment(new CurveRoute.LineSegment(start, end));
             int n = Math.max((int) Math.abs(start.x - end.x), (int) Math.abs(start.z - end.z));
@@ -488,12 +598,13 @@ public class RoutePlanner {
     }
 
     private record ConnectInfo(
-            Vec3 startPos,
+            BlockPos startPos,
             Vec3 startAxis,
-            Vec3 endPos,
+            BlockPos endPos,
             Vec3 endAxis,
             int startExtent,
-            int endExtent
+            int endExtent,
+            boolean skipCurve
     ) {
     }
 }
