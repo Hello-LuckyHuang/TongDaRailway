@@ -24,17 +24,16 @@ public class AStarPathfinder {
     private static final double DIRECTION_CHANGE_COST = 5;
     private static final double OUT_OF_RANGE_COST = 1000.0;
 
-    /** 区域与 Voronoi 范围外的移动增加有限代价，仍参与正常 A* 搜索。 */
+    /** 区域外的移动增加有限代价，仍参与正常 A* 搜索。 */
     public static List<int[]> findPath(
             RailwayBuilder builder,
             int[] start,
             Set<int[]> end,
             RegionPos center,
             int region_l1_limit,
-            EdgeVoronoiDiagram.Cell searchRange,
             AdditionalCostFunction additionalCostFunction
     ) {
-        if (builder == null || start == null || start.length < 2 || center == null || searchRange == null || additionalCostFunction == null) {
+        if (builder == null || start == null || start.length < 2 || center == null || additionalCostFunction == null) {
             return new ArrayList<>();
         }
         if (end == null || end.isEmpty()) {
@@ -86,7 +85,6 @@ public class AStarPathfinder {
                 int newY = currentY + direction[1] * PATH_STEP;
                 // 范围外只增加代价，不跳过节点，保证搜索图仍然连通。
                 double rangeCost = !isWithinRegionRange(newX, newY, center, region_l1_limit)
-                        || !searchRange.containsSegment(currentX, currentY, newX, newY)
                         ? OUT_OF_RANGE_COST : 0.0;
                 NodeKey neighborKey = new NodeKey(newX, newY, i);
 

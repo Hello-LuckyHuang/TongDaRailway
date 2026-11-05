@@ -42,10 +42,8 @@ public class RoutePlanner {
     private record PlannedPath(StationPlanner.ConnectionGenInfo connection, List<int[]> points) {
     }
 
-    /** 寻路阶段，仅在已匹配连接对应的边 Voronoi 单元内搜索。 */
+    /** 寻路阶段，为每条已匹配连接生成水平路径。 */
     public static void findPaths(PlanningContext context) {
-        var searchDiagram = new EdgeVoronoiDiagram(
-                context.connections.stream().map(StationPlanner.ConnectionGenInfo::graphEdge).toList());
         List<PlannedPath> paths = new ArrayList<>();
         for (StationPlanner.ConnectionGenInfo connection : context.connections) {
             context.builder.checkPlanningCancelled();
@@ -55,13 +53,14 @@ public class RoutePlanner {
                     Set.of(connection.connectEnd()),
                     context.railwayMap.regionPos,
                     0,
-                    searchDiagram.cellFor(connection.graphEdge()),
-                    (x, z) -> context.builder.getHeight(x, z) < context.level.getSeaLevel() + 2 ? 100 : 0
+                    (x, z) -> {
+                        int scopeLimit = RailwayMap.scopeLimit(
+                                x, z, connection.connectStart(), connection.connectEnd());
+                        int heightLimit = context.builder.getHeight(x, z) < context.level.getSeaLevel() + 2
+                                ? 100 : 0;
+                        return scopeLimit + heightLimit;
+                    }
             );
-            if (way.isEmpty()) {
-                Tongdarailway.LOGGER.warn("No path inside edge Voronoi cell for route {}", connection.graphEdge());
-                continue;
-            }
             paths.add(new PlannedPath(connection, way));
         }
         context.paths = paths;
@@ -143,7 +142,7 @@ public class RoutePlanner {
         // 转换为世界坐标系
         List<Vec3> path1 = new ArrayList<>();
         List<Vec3> dir = new ArrayList<>();
-        for (int i = 1; i < path.size()-3; i++) {
+        for (int i = 1; i < path.size()-2; i++) {
             var p0 = path.get(i);
             var p1 = path.get(i+1);
             Vec3 a = new Vec3(p0[0], p0[2], p0[1]);
@@ -160,22 +159,22 @@ public class RoutePlanner {
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
 
         // 车站起点连接
-//        Vec3 pA = con.start();//con.start().add(con.startDir().scale(30));
-//        path1.addFirst(pA);
-//        dir.addFirst(con.startDir());
-//
-//        Vec3 pB = con.end();//con.end().add(con.endDir().scale(30));
-//        path1.addLast(pB);
-//        dir.addLast(con.endDir().reverse());
+        Vec3 pA = con.start().add(con.startDir().scale(30));
+        path1.addFirst(pA);
+        dir.addFirst(con.startDir());
 
-//        result.connectWay2(con.start(), path1.getFirst(), con.startDir(), dir.getFirst().reverse(), true);
+        Vec3 pB = con.end().add(con.endDir().scale(30));
+        path1.addLast(pB);
+        dir.addLast(con.endDir().reverse());
+
+        result.connectWay2(con.start(), path1.getFirst(), con.startDir(), dir.getFirst().reverse(), true);
 
         for (int i = 0; i < path1.size()-1; i++) {
             var p0 = path1.get(i);
             var p1 = path1.get(i+1);
             var d0 = dir.get(i);
             var d1 = dir.get(i+1).reverse();
-            result.connectWay(p0, p1, d0, d1, true);
+            result.connectWay2(p0, p1, d0, d1, true);
         }
 
         /*
@@ -232,8 +231,7 @@ public class RoutePlanner {
         }*/
 
         // 终点车站连接
-//        result.addLine(pB, con.end());
-//        result.connectWay(path1.getLast(), con.end(), dir.getLast(), con.endDir(), true);
+        result.connectWay2(path1.getLast(), con.end(), dir.getLast(), con.endDir(), true);
 
         return result;
     }

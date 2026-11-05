@@ -177,13 +177,3 @@ idea {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'GBK' // Use the GBK charset for Java compilation
 }
-
-// 运行不依赖游戏环境的边 Voronoi 几何回归测试。
-def edgeVoronoiTest = tasks.register('testEdgeVoronoi', JavaExec) {
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.hxzhitang.tongdarailway.util.EdgeVoronoiDiagramTest'
-}
-tasks.named('check') {
-    dependsOn edgeVoronoiTest
-}

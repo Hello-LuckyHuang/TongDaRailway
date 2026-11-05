@@ -11,6 +11,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 import java.util.concurrent.CancellationException;
@@ -75,6 +76,42 @@ public class RailwayMap {
             Tongdarailway.LOGGER.error("Err in gen route: ", e);
             throw new IllegalStateException("Railway route planning failed", e);
         }
+    }
+
+    public static int scopeLimit(int x, int z, int[] start, int[] end) {
+        final float angle = 65;
+        final int maxCost = 10000;
+
+        float edgeX = end[0] - start[0];
+        float edgeZ = end[1] - start[1];
+        float length = (float) Math.sqrt(edgeX * edgeX + edgeZ * edgeZ);
+        if (length == 0) {
+            return maxCost;
+        }
+
+        Vec3 edgeDirection = new Vec3(edgeX / length, 0, edgeZ / length);
+        Vec3 sideDirection = edgeDirection.yRot((float) Math.toRadians(angle));
+
+        float ax = start[0], az = start[1];
+        float bx = end[0], bz = end[1];
+        float cx = (float) (bx + sideDirection.x * length);
+        float cz = (float) (bz + sideDirection.z * length);
+        float dx = (float) (ax + sideDirection.x * length);
+        float dz = (float) (az + sideDirection.z * length);
+
+        float crossAB = (bx - ax) * (z - az) - (bz - az) * (x - ax);
+        if (crossAB < 0) return maxCost;
+
+        float crossBC = (cx - bx) * (z - bz) - (cz - bz) * (x - bx);
+        if (crossBC < 0) return maxCost;
+
+        float crossCD = (dx - cx) * (z - cz) - (dz - cz) * (x - cx);
+        if (crossCD < 0) return maxCost;
+
+        float crossDA = (ax - dx) * (z - dz) - (az - dz) * (x - dx);
+        if (crossDA < 0) return maxCost;
+
+        return 0;
     }
 
     public CompoundTag toNBT() {
