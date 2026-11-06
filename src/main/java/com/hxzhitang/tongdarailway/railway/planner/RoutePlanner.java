@@ -98,28 +98,17 @@ public class RoutePlanner {
         if (path == null || path.isEmpty()) {
             return null;
         }
-//        path = thinPath(path);
-        if (path.isEmpty()) {
-            return null;
+
+        // 统计高度剖面
+        List<int[]> terrainHeights = new ArrayList<>();
+        for (int[] point : path) {
+            int h = builder.getExactHeight(level, point[0], point[1]);
+            terrainHeights.add(new int[] {point[0], point[1], h});
         }
 
-        int[] terrainHeights = new int[path.size()];
-        boolean[] oceanSurfacePoints = new boolean[path.size()];
-        for (int i = 0; i < path.size(); i++) {
-            int[] point = path.get(i);
-            terrainHeights[i] = builder.getExactHeight(level, point[0], point[1]);
-            oceanSurfacePoints[i] = terrainHeights[i] <= level.getSeaLevel() + 1
-                    && builder.isOceanBiome(level, point[0], point[1]);
-        }
+        // 执行路径最优高度规划
+        List<int[]> profile = planHeight(terrainHeights, (int) con.start().y, (int) con.end().y, level.getSeaLevel());
 
-        List<int[]> profile = VerticalProfilePlanner.plan(
-                path,
-                terrainHeights,
-                oceanSurfacePoints,
-                level.getSeaLevel(),
-                con.connectStart()[2],
-                con.connectEnd()[2]
-        );
         if (profile.isEmpty()) {
             Tongdarailway.LOGGER.warn(
                     "No grade-safe vertical profile from {} to {}",
@@ -129,6 +118,125 @@ public class RoutePlanner {
             return null;
         }
         return profile;
+    }
+
+    // 人类从AI手里又抢回了一块领地！
+    // xdm学蓝桥杯真的有用！
+    /**
+     * 使用动态规划的高度调整方法。解决思路应该类似于数塔最大值路径
+     * 在限制每步坡度的情况下，所有可能路径应该位于一个对侧顶点为起终点高度值的平行四边形包线内
+     * 每步只有上升n、水平、下降n共2n+1种走法
+     * 每步的损耗根据当前位置和地表高度判定
+     * 找到损耗最小的路径走法就是一个比较合理的路线高度剖面
+     * @param terrain 路线高度剖面。其中int[2]为在int[0],int[1]这xz坐标处的高度
+     * @param start 起点高度
+     * @param end 终点高度
+     * @param seaLevel 海平面高度，用于区分需要架桥的水域
+     * @return 最优路线高度剖面方案
+     * */
+    private static List<int[]> planHeight(List<int[]> terrain, int start, int end, int seaLevel) {
+        if (terrain == null || terrain.isEmpty()) return new ArrayList<>();
+
+        int n = terrain.size();
+
+        // 每步允许的最大高度变化
+        final int maxChange = 1;
+        // 陆地架桥损耗
+        final int bridgeCost = 3;
+        // 陆地隧道损耗
+        final int tunnelCost = 1;
+        // 海洋架桥高度
+        final int waterBridgeHeight = 10;
+        // 高度变更损耗
+        final int slopeCost = 2;
+
+        // 起终点高度差超过最大变化能力，无合法路径
+        if (Math.abs((long) end - start) > (long) maxChange * (n - 1))
+            return new ArrayList<>();
+
+        // 上一层各高度的最小Cost
+        Map<Integer, Integer> dp = new HashMap<>();
+        dp.put(start, Math.abs(start - terrain.getFirst()[2]));
+
+        // 记录各层最优路径的前驱高度
+        List<Map<Integer, Integer>> parent = new ArrayList<>();
+
+        for (int i = 1; i < n; i++) {
+
+            Map<Integer, Integer> next = new HashMap<>();
+            Map<Integer, Integer> prev = new HashMap<>();
+
+            // 当前节点的允许高度包线
+            long minH = Math.max(
+                    (long) start - (long) maxChange * i,
+                    (long) end - (long) maxChange * (n - 1 - i));
+
+            long maxH = Math.min(
+                    (long) start + (long) maxChange * i,
+                    (long) end + (long) maxChange * (n - 1 - i));
+
+            // 遍历上一层的所有高度
+            for (Map.Entry<Integer, Integer> entry : dp.entrySet()) {
+                int h = entry.getKey();
+
+                // 每步高度变化范围：-maxChange ~ +maxChange
+                for (int d = -maxChange; d <= maxChange; d++) {
+                    int height = h + d;
+
+                    // 超出允许包线直接跳过
+                    if (height < minH || height > maxH) continue;
+
+                    // 地形偏差Cost + 高度变化Cost
+                    int terrainCost = 0;
+                    int terrainH = terrain.get(i)[2];
+                    int dh = Math.abs(height - terrainH);
+                    if (terrainH <= seaLevel) {
+                        // 如果此处是水域
+                        terrainCost = height > seaLevel + waterBridgeHeight ? 0 : Math.abs(seaLevel+waterBridgeHeight-height) * 500;
+                    } else {
+                        // 如果此处是陆地
+                        if (dh > 5) {
+                            if (height > terrainH)
+                                terrainCost = dh * bridgeCost;
+                            else
+                                terrainCost = dh * tunnelCost;
+                        }
+                    }
+
+                    int cost = entry.getValue()
+                            + terrainCost
+                            + (d == 0 ? 0 : slopeCost);
+
+                    // 更新当前高度的最小Cost和前驱
+                    if (cost < next.getOrDefault(height, Integer.MAX_VALUE)) {
+                        next.put(height, cost);
+                        prev.put(height, h);
+                    }
+                }
+            }
+
+            dp = next;
+            parent.add(prev);
+        }
+
+        // 从终点回溯最优路径
+        List<int[]> path = new ArrayList<>();
+        int h = end;
+
+        for (int i = n - 1; i > 0; i--) {
+            int[] point = terrain.get(i).clone();
+            point[2] = h;
+            path.add(point);
+            h = parent.get(i - 1).get(h);
+        }
+
+        int[] first = terrain.getFirst().clone();
+        first[2] = start;
+        path.add(first);
+
+        Collections.reverse(path);
+
+        return path;
     }
 
     /**
@@ -151,9 +259,6 @@ public class RoutePlanner {
             path1.add(new Vec3((int) c.x, (int) c.y, (int) c.z));
             dir.add(MyMth.get8Dir(b.subtract(a)));
         }
-//        for (int[] point : path) {
-//            path1.add(new Vec3(point[0], point[2], point[1]));
-//        }
 
         // 连接线路和车站
         ResultWay result = new ResultWay(new CurveRoute(), new ArrayList<>());
@@ -176,59 +281,6 @@ public class RoutePlanner {
             var d1 = dir.get(i+1).reverse();
             result.connectWay2(p0, p1, d0, d1, true);
         }
-
-        /*
-        Vec3 startDir = con.startDir();
-        Vec3 endDir;
-        for (int i = 0; i < path1.size() - 1; i++) {
-            Vec3 start = path1.get(i);
-            Vec3 end = path1.get(i + 1);
-
-            endDir = MyMth.get8Dir(end.subtract(start)).reverse();
-            if (i == path1.size() - 2) // 处理和终点的连接
-                endDir = con.endDir();
-
-            // 可以直线连接
-            Vec3 dir = end.subtract(start).multiply(1, 0, 1).normalize();
-            double dot2 = startDir.dot(endDir.reverse());
-            double dot1 = startDir.dot(dir);
-            if (Mth.equal(dot1, 1) && Mth.equal(dot2, 1)) {
-                result.addBezier(start, startDir, end.subtract(start), endDir);
-            }
-            // 不能直接连接
-            else if (
-                    Mth.equal(dot2, 1) ||
-                    ResultWay.getConnect(BlockPos.containing(start.multiply(1,0,1)), BlockPos.containing(end.multiply(1,0,1)), startDir, endDir, false) == null
-            ) {
-                int len = (int) (start.distanceTo(end) / 2) - 2;
-                Vec3 aPos = (start.add(startDir.scale(len)).add(end.add(endDir.scale(len)))).scale(0.5);
-                aPos = new Vec3((int) aPos.x(), (int) aPos.y(), (int) aPos.z());
-                Vec3 aDir;
-                Vec3 d = aPos.subtract(start).multiply(1, 0, 1).normalize();
-                double dot = startDir.dot(d);
-                double cross = startDir.x * d.z - startDir.z * d.x;
-                boolean maximiseTurn = true;//start.y == end.y;
-
-                if (Mth.equal(dot, 1)) {
-                    // 前方 直线
-                    result.addBezier(start, startDir, end.subtract(start), endDir);
-                    continue;
-                } else if (dot > 0.78) {
-                    // 斜前方 135度钝角
-                    aDir = MyMth.rotateAroundY(startDir, cross, 45);
-                } else {
-                    // 侧前方 90度直角
-                    aDir = MyMth.rotateAroundY(startDir, cross, 90);
-                }
-                result.connectWay(start, aPos, startDir, aDir.reverse(), maximiseTurn);
-                result.connectWay(aPos, end, aDir, endDir, maximiseTurn);
-            }
-            // 可以连接
-            else {
-                result.connectWay(start, end, startDir, endDir, start.y == end.y);
-            }
-            startDir = endDir.reverse();
-        }*/
 
         // 终点车站连接
         result.connectWay2(path1.getLast(), con.end(), dir.getLast(), con.endDir(), true);
