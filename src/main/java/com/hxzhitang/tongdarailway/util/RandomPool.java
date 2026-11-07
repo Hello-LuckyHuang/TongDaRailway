@@ -21,15 +21,18 @@ import java.util.*;
 public class RandomPool<E> {
 
     private static final String DEFAULT_TAG = "default";
+    private static final double RARE_CHANCE = 0.006;
 
     private static final class Entry<E> {
         final long id;
         final E obj;
+        final boolean rare;
         final Set<String> tags; // 已归一化（trim / 非空 / 去重）
 
-        Entry(long id, E obj, Set<String> tags) {
+        Entry(long id, E obj, boolean rare, Set<String> tags) {
             this.id = id;
             this.obj = obj;
+            this.rare = rare;
             this.tags = tags;
         }
     }
@@ -42,6 +45,11 @@ public class RandomPool<E> {
 
     /** 添加/覆盖对象 */
     public void add(E obj, long id, String... tags) {
+        add(obj, id, false, tags);
+    }
+
+    /** 添加/覆盖对象 */
+    public void add(E obj, long id, boolean rare, String... tags) {
         if (obj == null) throw new IllegalArgumentException("obj cannot be null");
 
         Set<String> normTags = normalizeTags(tags);
@@ -58,7 +66,7 @@ public class RandomPool<E> {
             }
         }
 
-        Entry<E> e = new Entry<>(id, obj, normTags);
+        Entry<E> e = new Entry<>(id, obj, rare, normTags);
         byId.put(id, e);
 
         // 建立新索引
@@ -130,6 +138,18 @@ public class RandomPool<E> {
         }
 
         if (candidates.isEmpty()) return null;
+
+        List<Entry<E>> rareCandidates = new ArrayList<>();
+        for (Entry<E> candidate : candidates) {
+            if (candidate.rare) rareCandidates.add(candidate);
+        }
+        if (!rareCandidates.isEmpty()) {
+            SplittableRandom random = new SplittableRandom(seed);
+            if (random.nextDouble() < RARE_CHANCE)
+                return rareCandidates.get(random.nextInt(rareCandidates.size())).obj;
+            candidates.removeAll(rareCandidates);
+            if (candidates.isEmpty()) return null;
+        }
 
         int idx = pickIndex(seed, candidates.size());
         return candidates.get(idx).obj;

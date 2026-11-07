@@ -75,6 +75,7 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
             String type = GsonHelper.getAsString(jsonobject, "type");
             String nbt = GsonHelper.getAsString(jsonobject, "template");
             int heightOffset = GsonHelper.getAsInt(jsonobject, "height_offset");
+            boolean rare = GsonHelper.getAsBoolean(jsonobject, "is_rare", false);
             List<JsonElement> tags = GsonHelper.getAsJsonArray(jsonobject, "tags").asList();
             ResourceLocation nbtLocation = ResourceLocation.fromNamespaceAndPath(
                     nbt.split(":")[0],
@@ -124,22 +125,22 @@ public class ModStructureManager extends SimpleJsonResourceReloadListener {
                         StationTemplate template270 = new StationTemplate(rootTag, heightOffset, id+270, stationType, Rotation.COUNTERCLOCKWISE_90);
 
                         if (template.getExitCount() == 4) {
-                            station4.add(template, id, tagArray);
-                            station4.add(template90, id+90, tagArray);
-                            station4.add(template180, id+180, tagArray);
-                            station4.add(template270, id+270, tagArray);
+                            station4.add(template, id, rare, tagArray);
+                            station4.add(template90, id+90, rare, tagArray);
+                            station4.add(template180, id+180, rare, tagArray);
+                            station4.add(template270, id+270, rare, tagArray);
                         }
                         else if (template.getExitCount() == 2) {
-                            station2.add(template, id, tagArray);
-                            station2.add(template90, id+90, tagArray);
-                            station2.add(template180, id+180, tagArray);
-                            station2.add(template270, id+270, tagArray);
+                            station2.add(template, id, rare, tagArray);
+                            station2.add(template90, id+90, rare, tagArray);
+                            station2.add(template180, id+180, rare, tagArray);
+                            station2.add(template270, id+270, rare, tagArray);
                         }
                         else
                             Tongdarailway.LOGGER.error("Invalid StationTemplate: {}", location.getPath());
                     } else if (temType.equals("roadbed")) {
                         RailwayTemplate template = new RailwayTemplate(rootTag, heightOffset);
-                        roadbed.add(template, id, tagArray);
+                        roadbed.add(template, id, rare, tagArray);
                     }
                 }
             } catch (Exception e) {
