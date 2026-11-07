@@ -20,15 +20,12 @@ public class AStarPathfinder {
             5, 3, 7, 1
     };
 
-    private static final double[] MOVEMENT_COST = {
-            1.0, 1.0, 1.0, 1.0,
-            1.414, 1.414, 1.414, 1.414
-    };
     private static final int PATH_STEP = 64;
     private static final int NO_DIRECTION = -1;
     private static final double DISTANCE_WEIGHT = 0.5;
-    private static final double TURN_COST_COEFFICIENT = 2.0;
-    private static final double HEIGHT_DIFFERENCE_COST_MULTIPLIER = 16.0;
+    private static final double TURN_COST_COEFFICIENT = 8.0;
+    private static final double OVER_GRADE_COST_COEFFICIENT = 0.002;
+    private static final double MAX_ALLOWED_GRADE_PER_MILLE = 125.0;
     private static final double OUT_OF_RANGE_COST = 10000.0;
 
     /** 区域外的移动增加有限代价，仍参与正常 A* 搜索。 */
@@ -95,12 +92,15 @@ public class AStarPathfinder {
                         ? OUT_OF_RANGE_COST : 0.0;
                 NodeKey neighborKey = new NodeKey(newX, newY, i);
 
-                double movementCost = MOVEMENT_COST[i] * PATH_STEP * DISTANCE_WEIGHT;
+                double horizontalDistance = Math.hypot(newX - currentX, newY - currentY);
+                double movementCost = horizontalDistance * DISTANCE_WEIGHT;
                 double directionChangeCost = calculateTurnCost(current.directionIndex, i);
-                // 高差代价按平方增长，上坡和下坡均加重对较大高差的惩罚。
-                double heightDifference = (double) builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY);
-                double heightCost = heightDifference * heightDifference * HEIGHT_DIFFERENCE_COST_MULTIPLIER;
-                double tentativeG = current.g + movementCost + directionChangeCost + heightCost
+                double heightDifference = Math.abs(
+                        (double) builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY));
+                double gradePerMille = 1000.0 * heightDifference / horizontalDistance;
+                double overGrade = Math.max(0.0, gradePerMille - MAX_ALLOWED_GRADE_PER_MILLE);
+                double overGradeCost = OVER_GRADE_COST_COEFFICIENT * overGrade * overGrade;
+                double tentativeG = current.g + movementCost + directionChangeCost + overGradeCost
                         + rangeCost + additionalCostFunction.cost(currentX, currentY);
                 double oldNeighborG = gScore.getOrDefault(neighborKey, Double.MAX_VALUE);
 

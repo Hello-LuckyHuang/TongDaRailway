@@ -128,11 +128,18 @@ public class RoutePlanner {
 
     /** 轨道曲线生成阶段，将调整后的路径转换为曲线和轨道放置信息并按区块保存。 */
     public static void generateTrackCurves(PlanningContext context) {
+        Set<BlockPos> connectedExits = new HashSet<>();
         for (PlannedPath path : context.paths) {
             context.builder.checkPlanningCancelled();
             ResultWay route = connectTrackNew5(path.points(), path.connection());
             putChunk(context.railwayMap, route);
+            if (route != null && !route.trackPutInfos().isEmpty()) {
+                connectedExits.add(BlockPos.containing(path.connection().start()));
+                connectedExits.add(BlockPos.containing(path.connection().end()));
+            }
         }
+        context.railwayMap.stations.removeIf(station -> station.getExits().stream()
+                .noneMatch(exit -> connectedExits.contains(exit.exitPos())));
     }
 
     /**
@@ -186,7 +193,7 @@ public class RoutePlanner {
         int n = terrain.size();
 
         // 每步允许的最大高度变化
-        final int maxChange = 8;
+        final int maxChange = 4;
         // 陆地架桥损耗
         final int bridgeCost = 3;
         // 陆地隧道损耗
@@ -245,7 +252,7 @@ public class RoutePlanner {
                             if (height > terrainH)
                                 terrainCost = dh * bridgeCost;
                             else
-                                terrainCost = dh * tunnelCost;
+                                terrainCost = Math.min(dh * tunnelCost, 30);
                         }
                     }
 
