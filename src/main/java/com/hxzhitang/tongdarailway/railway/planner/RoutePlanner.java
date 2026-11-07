@@ -54,7 +54,7 @@ public class RoutePlanner {
                     context.railwayMap.regionPos,
                     0,
                     (x, z) -> {
-                        int scopeLimit = RailwayMap.scopeLimit(
+                        int scopeLimit = scopeLimit(
                                 x, z, connection.connectStart(), connection.connectEnd());
                         int heightLimit = context.builder.getHeight(x, z) < context.level.getSeaLevel() + 2
                                 ? 100 : 0;
@@ -64,6 +64,52 @@ public class RoutePlanner {
             paths.add(new PlannedPath(connection, way));
         }
         context.paths = paths;
+    }
+
+    public static int scopeLimit(int x, int z, int[] start, int[] end) {
+        // 有点尴尬了，低端的数学错误
+        final double angle = 65;
+        final int maxCost = 10000;
+
+        double ax = start[0], az = start[1];
+        double cx = end[0], cz = end[1];
+
+        double edgeX = cx - ax;
+        double edgeZ = cz - az;
+
+        if (edgeX == 0 && edgeZ == 0) {
+            return maxCost;
+        }
+
+        // AC 中点
+        double mx = (ax + cx) / 2;
+        double mz = (az + cz) / 2;
+
+        // 计算另一条对角线 BD 的一半
+        double scale = Math.tan(Math.toRadians(angle / 2)) / 2;
+
+        double offsetX = -edgeZ * scale;
+        double offsetZ = edgeX * scale;
+
+        // 计算 B、D
+        double bx = mx + offsetX;
+        double bz = mz + offsetZ;
+
+        double dx = mx - offsetX;
+        double dz = mz - offsetZ;
+
+        // 判断点是否在菱形内部
+        double crossAB = (bx - ax) * (z - az) - (bz - az) * (x - ax);
+        double crossBC = (cx - bx) * (z - bz) - (cz - bz) * (x - bx);
+        double crossCD = (dx - cx) * (z - cz) - (dz - cz) * (x - cx);
+        double crossDA = (ax - dx) * (z - dz) - (az - dz) * (x - dx);
+
+        if (crossAB > 0) return maxCost;
+        if (crossBC > 0) return maxCost;
+        if (crossCD > 0) return maxCost;
+        if (crossDA > 0) return maxCost;
+
+        return 0;
     }
 
     /** 高度调整阶段，将水平路径转换为满足坡度约束的三维路径。 */
@@ -140,7 +186,7 @@ public class RoutePlanner {
         int n = terrain.size();
 
         // 每步允许的最大高度变化
-        final int maxChange = 1;
+        final int maxChange = 8;
         // 陆地架桥损耗
         final int bridgeCost = 3;
         // 陆地隧道损耗
@@ -351,11 +397,11 @@ public class RoutePlanner {
                 // 连接或强行连接
                 if(!connectWayNormal(start, aPos, startDir, aDir.reverse(), maximiseTurn)) {
                     connectWayForce(start, aPos, startDir, aDir.reverse());
-                    Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect (-1). {} {}", start, end);
+                    Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect (-1). {} {}", start, aPos);
                 }
                 if(!connectWayNormal(aPos, end, aDir, endDir, maximiseTurn)) {
                     connectWayForce(aPos, end, aDir, endDir);
-                    Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect (-2). {} {}", start, end);
+                    Tongdarailway.LOGGER.warn("The road position cannot be determined, and the line has been forced to connect (-2). {} {}", aPos, end);
                 }
             }
         }

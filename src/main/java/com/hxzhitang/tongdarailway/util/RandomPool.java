@@ -7,16 +7,16 @@ import java.util.*;
 /**
  * RandomPool<E>
  *
- * è§„åˆ™ï¼š
- * 1) add(obj, id, tags...) æ·»åŠ å¸¦æ ‡ç­¾å¯¹è±¡ï¼ˆid å”¯ä¸€ï¼Œé‡å¤ add ä¼šè¦†ç›–ï¼‰
+ * ¹æÔò£º
+ * 1) add(obj, id, tags...) Ìí¼Ó´ø±êÇ©¶ÔÏó£¨id Î¨Ò»£¬ÖØ¸´ add »á¸²¸Ç£©
  * 2) get(seed, tag1, tag2...)
- *    (1) å€™é€‰ = æ‰€æœ‰å¸¦ tag1 çš„å¯¹è±¡
- *    (2) åœ¨å€™é€‰ä¸­ï¼Œé€‰å‡ºâ€œå‘½ä¸­ tag2... æ•°é‡æœ€å¤šâ€çš„é‚£ä¸€æ‰¹å¯¹è±¡ï¼ˆå¹¶åˆ—éƒ½ç®—ï¼‰
- *    (3) ç”¨ seed ä»è¯¥æ‰¹å¯¹è±¡ä¸­éšæœºè¿”å›ä¸€ä¸ª
- *    (4) è‹¥å€™é€‰ä¸­æ²¡æœ‰ä»»ä½•å¯¹è±¡å‘½ä¸­ä»»æ„ tag2ï¼Œåˆ™ä»(å€™é€‰ ä¸” å¸¦ "default")ä¸­éšæœºè¿”å›ä¸€ä¸ª
- *        è‹¥è¯¥ fallback ä¹Ÿä¸ºç©ºï¼Œåˆ™è¿”å› null
- *    (5) è‹¥æ²¡æœ‰ä»»ä½•å¯¹è±¡å¸¦ tag1ï¼Œè¿”å› null
- * 3) getById(id) ç›´æ¥å–
+ *    (1) ºòÑ¡ = ËùÓĞ´ø tag1 µÄ¶ÔÏó
+ *    (2) ÔÚºòÑ¡ÖĞ£¬Ñ¡³ö¡°ÃüÖĞ tag2... ÊıÁ¿×î¶à¡±µÄÄÇÒ»Åú¶ÔÏó£¨²¢ÁĞ¶¼Ëã£©
+ *    (3) ÓÃ seed ´Ó¸ÃÅú¶ÔÏóÖĞËæ»ú·µ»ØÒ»¸ö
+ *    (4) ÈôºòÑ¡ÖĞÃ»ÓĞÈÎºÎ¶ÔÏóÃüÖĞÈÎÒâ tag2£¬Ôò´Ó(ºòÑ¡ ÇÒ ´ø "default")ÖĞËæ»ú·µ»ØÒ»¸ö
+ *        Èô¸Ã fallback Ò²Îª¿Õ£¬Ôò·µ»Ø null
+ *    (5) ÈôÃ»ÓĞÈÎºÎ¶ÔÏó´ø tag1£¬·µ»Ø null
+ * 3) getById(id) Ö±½ÓÈ¡
  */
 public class RandomPool<E> {
 
@@ -25,7 +25,7 @@ public class RandomPool<E> {
     private static final class Entry<E> {
         final long id;
         final E obj;
-        final Set<String> tags; // å·²å½’ä¸€åŒ–ï¼ˆtrim / éç©º / å»é‡ï¼‰
+        final Set<String> tags; // ÒÑ¹éÒ»»¯£¨trim / ·Ç¿Õ / È¥ÖØ£©
 
         Entry(long id, E obj, Set<String> tags) {
             this.id = id;
@@ -37,16 +37,16 @@ public class RandomPool<E> {
     // id -> entry
     private final Map<Long, Entry<E>> byId = new HashMap<>();
 
-    // tag -> ids (ç”¨ LinkedHashSet ä¿æŒç¨³å®šè¿­ä»£é¡ºåºï¼Œä¾¿äºå¯é‡å¤æ€§)
+    // tag -> ids (ÓÃ LinkedHashSet ±£³ÖÎÈ¶¨µü´úË³Ğò£¬±ãÓÚ¿ÉÖØ¸´ĞÔ)
     private final Map<String, LinkedHashSet<Long>> idsByTag = new HashMap<>();
 
-    /** æ·»åŠ /è¦†ç›–å¯¹è±¡ */
+    /** Ìí¼Ó/¸²¸Ç¶ÔÏó */
     public void add(E obj, long id, String... tags) {
         if (obj == null) throw new IllegalArgumentException("obj cannot be null");
 
         Set<String> normTags = normalizeTags(tags);
 
-        // å¦‚æœè¦†ç›–æ—§çš„ï¼Œéœ€è¦å…ˆä»ç´¢å¼•é‡Œç§»é™¤æ—§æ ‡ç­¾å…³è”
+        // Èç¹û¸²¸Ç¾ÉµÄ£¬ĞèÒªÏÈ´ÓË÷ÒıÀïÒÆ³ı¾É±êÇ©¹ØÁª
         Entry<E> old = byId.get(id);
         if (old != null) {
             for (String t : old.tags) {
@@ -61,23 +61,23 @@ public class RandomPool<E> {
         Entry<E> e = new Entry<>(id, obj, normTags);
         byId.put(id, e);
 
-        // å»ºç«‹æ–°ç´¢å¼•
+        // ½¨Á¢ĞÂË÷Òı
         for (String t : normTags) {
             idsByTag.computeIfAbsent(t, k -> new LinkedHashSet<>()).add(id);
         }
     }
 
-    /** ç›´æ¥æŒ‰ id å–å¯¹è±¡ï¼›ä¸å­˜åœ¨è¿”å› null */
+    /** Ö±½Ó°´ id È¡¶ÔÏó£»²»´æÔÚ·µ»Ø null */
     public E getById(long id) {
         Entry<E> e = byId.get(id);
         return e == null ? null : e.obj;
     }
 
     /**
-     * æŒ‰è§„åˆ™éšæœºè·å–
-     * @param seed éšæœºç§å­ï¼ˆç›¸åŒè¾“å…¥åº”å¾—åˆ°ç¨³å®šç»“æœï¼‰
-     * @param tag1 ç¬¬ä¸€é™å®šæ ‡ç­¾ï¼ˆå¿…å¡«ï¼›ä¸ºç©ºåˆ™ç›´æ¥è¿”å› nullï¼‰
-     * @param tag2s æ¬¡çº§æ ‡ç­¾é›†åˆï¼ˆå¯ç©º/å¯ä¸ä¼ ï¼‰
+     * °´¹æÔòËæ»ú»ñÈ¡
+     * @param seed Ëæ»úÖÖ×Ó£¨ÏàÍ¬ÊäÈëÓ¦µÃµ½ÎÈ¶¨½á¹û£©
+     * @param tag1 µÚÒ»ÏŞ¶¨±êÇ©£¨±ØÌî£»Îª¿ÕÔòÖ±½Ó·µ»Ø null£©
+     * @param tag2s ´Î¼¶±êÇ©¼¯ºÏ£¨¿É¿Õ/¿É²»´«£©
      */
     public E get(long seed, String tag1, String... tag2s) {
         String t1 = normalizeTag(tag1);
@@ -86,7 +86,7 @@ public class RandomPool<E> {
         LinkedHashSet<Long> baseIdsSet = idsByTag.get(t1);
         if (baseIdsSet == null || baseIdsSet.isEmpty()) return null;
 
-        // base å€™é€‰åˆ—è¡¨ï¼ˆç¨³å®šé¡ºåºï¼‰
+        // base ºòÑ¡ÁĞ±í£¨ÎÈ¶¨Ë³Ğò£©
         List<Entry<E>> base = new ArrayList<>(baseIdsSet.size());
         for (Long id : baseIdsSet) {
             Entry<E> e = byId.get(id);
@@ -94,15 +94,15 @@ public class RandomPool<E> {
         }
         if (base.isEmpty()) return null;
 
-        // å½’ä¸€åŒ– tag2
+        // ¹éÒ»»¯ tag2
         Set<String> t2set = normalizeTags(tag2s);
-        // å¦‚æœ tag2 ä¸ºç©ºï¼šæŒ‰â€œæœ€å¤šå‘½ä¸­â€å…¶å®å…¨æ˜¯ 0ï¼›ä¼šèµ° fallback è§„åˆ™ (4)ï¼Œå³é€‰ defaultã€‚
-        // è¿™è·Ÿä½ çš„è§„åˆ™æ›´ä¸€è‡´ï¼štag2.. ä¸ºç©º => æ²¡æœ‰äººâ€œå¸¦æœ‰tag2ä¸­çš„æ ‡ç­¾â€ï¼Œå› æ­¤ fallbackã€‚
-        // å¦‚æœä½ å¸Œæœ› tag2 ä¸ºç©ºæ—¶ç›´æ¥åœ¨ tag1 èŒƒå›´å†…éšæœºï¼Œå‘Šè¯‰æˆ‘æˆ‘ç»™ä½ æ”¹ä¸€è¡Œã€‚
+        // Èç¹û tag2 Îª¿Õ£º°´¡°×î¶àÃüÖĞ¡±ÆäÊµÈ«ÊÇ 0£»»á×ß fallback ¹æÔò (4)£¬¼´Ñ¡ default¡£
+        // Õâ¸úÄãµÄ¹æÔò¸üÒ»ÖÂ£ºtag2.. Îª¿Õ => Ã»ÓĞÈË¡°´øÓĞtag2ÖĞµÄ±êÇ©¡±£¬Òò´Ë fallback¡£
+        // Èç¹ûÄãÏ£Íû tag2 Îª¿ÕÊ±Ö±½ÓÔÚ tag1 ·¶Î§ÄÚËæ»ú£¬¸æËßÎÒÎÒ¸øÄã¸ÄÒ»ĞĞ¡£
         int maxHit = 0;
         boolean anyHit = false;
 
-        // å…ˆæ‰«ææ±‚ maxHit
+        // ÏÈÉ¨ÃèÇó maxHit
         if (!t2set.isEmpty()) {
             for (Entry<E> e : base) {
                 int hit = countTagHits(e.tags, t2set);
@@ -114,7 +114,7 @@ public class RandomPool<E> {
         List<Entry<E>> candidates;
 
         if (anyHit) {
-            // (2) å–å‘½ä¸­æ•°é‡ == maxHit çš„é‚£æ‰¹
+            // (2) È¡ÃüÖĞÊıÁ¿ == maxHit µÄÄÇÅú
             candidates = new ArrayList<>();
             for (Entry<E> e : base) {
                 if (countTagHits(e.tags, t2set) == maxHit) {
@@ -122,7 +122,7 @@ public class RandomPool<E> {
                 }
             }
         } else {
-            // (4) æ²¡æœ‰ä»»ä½•å¯¹è±¡å‘½ä¸­ä»»æ„ tag2 => ä» base ä¸” å¸¦ default çš„é‡Œé¢å–
+            // (4) Ã»ÓĞÈÎºÎ¶ÔÏóÃüÖĞÈÎÒâ tag2 => ´Ó base ÇÒ ´ø default µÄÀïÃæÈ¡
             candidates = new ArrayList<>();
             for (Entry<E> e : base) {
                 if (e.tags.contains(DEFAULT_TAG)) candidates.add(e);
@@ -146,8 +146,8 @@ public class RandomPool<E> {
     }
 
     /**
-     * ç”¨ seed ç”Ÿæˆ [0, bound) çš„ç¨³å®šä¸‹æ ‡
-     * ä½¿ç”¨ SplittableRandomï¼ˆJDK8+ï¼‰ï¼ŒåŒ seed åŒ bound ç»“æœç¨³å®š
+     * ÓÃ seed Éú³É [0, bound) µÄÎÈ¶¨ÏÂ±ê
+     * Ê¹ÓÃ SplittableRandom£¨JDK8+£©£¬Í¬ seed Í¬ bound ½á¹ûÎÈ¶¨
      */
     private static int pickIndex(long seed, int bound) {
         if (bound <= 0) throw new IllegalArgumentException("bound must be > 0");
@@ -162,7 +162,7 @@ public class RandomPool<E> {
 
     private static Set<String> normalizeTags(String... tags) {
         if (tags == null || tags.length == 0) return Collections.emptySet();
-        // LinkedHashSet ä¿æŒç¨³å®šé¡ºåº
+        // LinkedHashSet ±£³ÖÎÈ¶¨Ë³Ğò
         LinkedHashSet<String> set = new LinkedHashSet<>();
         for (String tag : tags) {
             String t = normalizeTag(tag);
@@ -174,10 +174,10 @@ public class RandomPool<E> {
     public static void main111(String[] args) {
         System.out.println(Tags.Biomes.IS_OCEAN.location());
 
-        // åˆ›å»ºRandomPoolå®ä¾‹
+        // ´´½¨RandomPoolÊµÀı
         RandomPool<String> pool = new RandomPool<>();
 
-        // æ·»åŠ å¯¹è±¡
+        // Ìí¼Ó¶ÔÏó
         pool.add("Apple", 1, "fruit", "red", "default");
         pool.add("Cherry", 6, "fruit", "red", "juicy");
         pool.add("Orange", 5, "fruit", "juicy");
@@ -185,16 +185,16 @@ public class RandomPool<E> {
         pool.add("Carrot", 3, "vegetable", "orange", "default");
         pool.add("Spinach", 4, "vegetable", "green");
 
-        // è·å–IDä¸º1çš„å¯¹è±¡
-        System.out.println(pool.getById(1)); // è¾“å‡º "Apple"
+        // »ñÈ¡IDÎª1µÄ¶ÔÏó
+        System.out.println(pool.getById(1)); // Êä³ö "Apple"
 
-        // è·å–å¸¦æœ‰"fruit"æ ‡ç­¾å¹¶ä¸”å¸¦æœ‰"red"æ ‡ç­¾çš„å¯¹è±¡
-        System.out.println(pool.get(System.currentTimeMillis(), "fruit", "red", "juicy")); // è¾“å‡º "Apple"
+        // »ñÈ¡´øÓĞ"fruit"±êÇ©²¢ÇÒ´øÓĞ"red"±êÇ©µÄ¶ÔÏó
+        System.out.println(pool.get(System.currentTimeMillis(), "fruit", "red", "juicy")); // Êä³ö "Apple"
 
-        // è·å–å¸¦æœ‰"fruit"æ ‡ç­¾å¹¶ä¸”å¸¦æœ‰"default"æ ‡ç­¾çš„å¯¹è±¡
-        System.out.println(pool.get(12345, "fruit")); // è¾“å‡º "Apple" æˆ– "Banana"ï¼ˆéšæœºï¼‰
+        // »ñÈ¡´øÓĞ"fruit"±êÇ©²¢ÇÒ´øÓĞ"default"±êÇ©µÄ¶ÔÏó
+        System.out.println(pool.get(12345, "fruit")); // Êä³ö "Apple" »ò "Banana"£¨Ëæ»ú£©
 
-        // è·å–æ²¡æœ‰"fruit"æ ‡ç­¾çš„æƒ…å†µä¸‹ï¼Œå¸¦æœ‰"default"æ ‡ç­¾çš„å¯¹è±¡
-        System.out.println(pool.get(12345, "vegetable", "yellow")); // è¾“å‡º "Carrot" æˆ– "Spinach"ï¼ˆéšæœºï¼‰
+        // »ñÈ¡Ã»ÓĞ"fruit"±êÇ©µÄÇé¿öÏÂ£¬´øÓĞ"default"±êÇ©µÄ¶ÔÏó
+        System.out.println(pool.get(12345, "vegetable", "yellow")); // Êä³ö "Carrot" »ò "Spinach"£¨Ëæ»ú£©
     }
 }

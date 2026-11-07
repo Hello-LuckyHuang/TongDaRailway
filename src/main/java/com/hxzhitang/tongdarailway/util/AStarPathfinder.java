@@ -14,15 +14,22 @@ public class AStarPathfinder {
             {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
     };
 
+    // Each direction's heading in 45-degree steps, counter-clockwise from east.
+    private static final int[] DIRECTION_ANGLE_STEPS = {
+            4, 0, 6, 2,
+            5, 3, 7, 1
+    };
+
     private static final double[] MOVEMENT_COST = {
             1.0, 1.0, 1.0, 1.0,
             1.414, 1.414, 1.414, 1.414
     };
-    private static final int PATH_STEP = 16;
+    private static final int PATH_STEP = 64;
     private static final int NO_DIRECTION = -1;
-    // 降低转弯惩罚，让路线更灵活地绕开陡坡。
-    private static final double DIRECTION_CHANGE_COST = 5;
-    private static final double OUT_OF_RANGE_COST = 1000.0;
+    private static final double DISTANCE_WEIGHT = 0.5;
+    private static final double TURN_COST_COEFFICIENT = 2.0;
+    private static final double HEIGHT_DIFFERENCE_COST_MULTIPLIER = 16.0;
+    private static final double OUT_OF_RANGE_COST = 10000.0;
 
     /** 区域外的移动增加有限代价，仍参与正常 A* 搜索。 */
     public static List<int[]> findPath(
@@ -88,13 +95,11 @@ public class AStarPathfinder {
                         ? OUT_OF_RANGE_COST : 0.0;
                 NodeKey neighborKey = new NodeKey(newX, newY, i);
 
-                double movementCost = MOVEMENT_COST[i] * PATH_STEP;
-                double directionChangeCost = current.directionIndex != NO_DIRECTION && current.directionIndex != i
-                        ? DIRECTION_CHANGE_COST
-                        : 0.0;
+                double movementCost = MOVEMENT_COST[i] * PATH_STEP * DISTANCE_WEIGHT;
+                double directionChangeCost = calculateTurnCost(current.directionIndex, i);
                 // 高差代价按平方增长，上坡和下坡均加重对较大高差的惩罚。
                 double heightDifference = (double) builder.getHeight(currentX, currentY) - builder.getHeight(newX, newY);
-                double heightCost = heightDifference * heightDifference;
+                double heightCost = heightDifference * heightDifference * HEIGHT_DIFFERENCE_COST_MULTIPLIER;
                 double tentativeG = current.g + movementCost + directionChangeCost + heightCost
                         + rangeCost + additionalCostFunction.cost(currentX, currentY);
                 double oldNeighborG = gScore.getOrDefault(neighborKey, Double.MAX_VALUE);
@@ -125,7 +130,18 @@ public class AStarPathfinder {
                 minDistance = distance;
             }
         }
-        return minDistance;
+        return minDistance * DISTANCE_WEIGHT;
+    }
+
+    private static double calculateTurnCost(int currentDirectionIndex, int nextDirectionIndex) {
+        if (currentDirectionIndex == NO_DIRECTION) {
+            return 0.0;
+        }
+
+        int angleStepDifference = Math.abs(
+                DIRECTION_ANGLE_STEPS[currentDirectionIndex] - DIRECTION_ANGLE_STEPS[nextDirectionIndex]);
+        int turnSteps = Math.min(angleStepDifference, 8 - angleStepDifference);
+        return TURN_COST_COEFFICIENT * turnSteps * turnSteps;
     }
 
     private static int[] findReachedTarget(int x, int y, List<int[]> targets, int step) {
