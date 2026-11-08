@@ -13,6 +13,7 @@ public class ModLanguageProviderZHCN extends LanguageProvider {
     @Override
     protected void addTranslations() {
         this.add(ModBlocks.TRACK_SPAWNER.get(), "¹ìµÀË¢¹ÖÁý");
+        this.add(ModBlocks.TONGDARAILWAY_BADGE.get(), "\u901a\u8fbe\u94c1\u8def\u7eaa\u5ff5\u7ae0");
         this.add("commands.tongdarailway.searchstation.already_searching", "\u5df2\u6709\u4e00\u4e2a\u8f66\u7ad9\u641c\u7d22\u4efb\u52a1\u6b63\u5728\u8fd0\u884c\u3002");
         this.add("commands.tongdarailway.searchstation.failed", "\u8f66\u7ad9\u641c\u7d22\u5931\u8d25\uff0c\u8bf7\u67e5\u770b\u670d\u52a1\u5668\u65e5\u5fd7\u3002");
         this.add("commands.tongdarailway.searchstation.not_found", "\u5468\u56f4 %s x %s \u4e2a\u94c1\u8def\u89c4\u5212\u533a\u5185\u672a\u627e\u5230\u8f66\u7ad9\u3002");

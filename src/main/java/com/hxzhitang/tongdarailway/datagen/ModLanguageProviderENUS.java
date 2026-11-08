@@ -13,6 +13,7 @@ public class ModLanguageProviderENUS extends LanguageProvider {
     @Override
     protected void addTranslations() {
         this.add(ModBlocks.TRACK_SPAWNER.get(), "Track Spawner");
+        this.add(ModBlocks.TONGDARAILWAY_BADGE.get(), "TongDa Railway Badge");
         this.add("commands.tongdarailway.searchstation.already_searching", "A station search is already running.");
         this.add("commands.tongdarailway.searchstation.failed", "Station search failed. Check the server log for details.");
         this.add("commands.tongdarailway.searchstation.not_found", "No station was found in the surrounding %s x %s railway regions.");

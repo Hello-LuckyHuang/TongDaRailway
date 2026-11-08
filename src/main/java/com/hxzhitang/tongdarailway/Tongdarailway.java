@@ -3,6 +3,7 @@ package com.hxzhitang.tongdarailway;
 import com.hxzhitang.tongdarailway.blocks.ModBlockEntities;
 import com.hxzhitang.tongdarailway.blocks.ModBlocks;
 import com.hxzhitang.tongdarailway.blocks.TrackSpawnerBlockRenderer;
+import com.hxzhitang.tongdarailway.blocks.BadgeBlockRenderer;
 import com.hxzhitang.tongdarailway.datagen.ModDataGen;
 import com.hxzhitang.tongdarailway.event.FeatureRegistry;
 import com.hxzhitang.tongdarailway.railway.RailwayBuilder;
@@ -81,6 +82,7 @@ public class Tongdarailway {
             event.enqueueWork(() -> {
                 // ×¢²á·½¿éÊµÌåäÖÈ¾Æ÷
                 BlockEntityRenderers.register(ModBlockEntities.TRACK_SPAWNER.get(), TrackSpawnerBlockRenderer::new);
+                BlockEntityRenderers.register(ModBlockEntities.TONGDARAILWAY_BADGE.get(), BadgeBlockRenderer::new);
             });
         }
     }

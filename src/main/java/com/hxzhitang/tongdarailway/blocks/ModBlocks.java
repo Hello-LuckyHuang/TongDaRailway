@@ -3,6 +3,7 @@ package com.hxzhitang.tongdarailway.blocks;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
@@ -29,6 +30,21 @@ public class ModBlocks {
     );
 
     public static final Supplier<Item> TRACK_SPAWNER_ITEM = ITEMS.register("track_spawner", () -> new BlockItem(TRACK_SPAWNER.get(), new Item.Properties()));
+
+    public static final DeferredBlock<BadgeBlock> TONGDARAILWAY_BADGE = BLOCKS.registerBlock(
+            "tongdarailway_badge",
+            BadgeBlock::new,
+            BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_PLANKS)
+                    .sound(SoundType.METAL)
+                    .noOcclusion()
+    );
+
+    // Registered as an item so commands, loot tables and survival inventories can use it.
+    // It is intentionally not added to any creative mode tab.
+    public static final Supplier<Item> TONGDARAILWAY_BADGE_ITEM = ITEMS.register(
+            "tongdarailway_badge",
+            () -> new BlockItem(TONGDARAILWAY_BADGE.get(), new Item.Properties())
+    );
 
     public static void register(IEventBus eventBus){
         BLOCKS.register(eventBus);

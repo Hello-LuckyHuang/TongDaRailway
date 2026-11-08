@@ -26,5 +26,9 @@ public class ModBlockStateProvider extends BlockStateProvider {
                 .renderType("cutout");
 
         this.simpleBlockWithItem(ModBlocks.TRACK_SPAWNER.get(), trackSpawnerModel);
+
+        ModelFile badgeModel = models().getExistingFile(modLoc("block/tongdarailway_badge"));
+        this.horizontalFaceBlock(ModBlocks.TONGDARAILWAY_BADGE.get(), badgeModel);
+        this.itemModels().basicItem(ModBlocks.TONGDARAILWAY_BADGE_ITEM.get());
     }
 }

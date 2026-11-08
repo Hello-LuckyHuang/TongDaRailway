@@ -47,6 +47,11 @@ public class ModDataGen extends DatapackBuiltinEntriesProvider {
                 event.includeClient(),
                 (DataProvider.Factory<ModBlockStateProvider>) pOutput -> new ModBlockStateProvider(pOutput, Tongdarailway.MODID, efh)
         );
+        // Block mining tags
+        event.getGenerator().addProvider(
+                event.includeServer(),
+                (DataProvider.Factory<ModBlockTagsProvider>) pOutput -> new ModBlockTagsProvider(pOutput, lp, efh)
+        );
         // 战利品表
         event.getGenerator().addProvider(
                 event.includeServer(),

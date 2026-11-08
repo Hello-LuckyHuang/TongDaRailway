@@ -13,7 +13,8 @@ import java.util.Set;
 
 public class ModBlockLootProvider extends BlockLootSubProvider {
     public static final Set<Block> BLOCK = Set.of(
-            ModBlocks.TRACK_SPAWNER.get()
+            ModBlocks.TRACK_SPAWNER.get(),
+            ModBlocks.TONGDARAILWAY_BADGE.get()
     );
 
     protected ModBlockLootProvider(HolderLookup.Provider registries) {
@@ -25,6 +26,7 @@ public class ModBlockLootProvider extends BlockLootSubProvider {
         this.add(ModBlocks.TRACK_SPAWNER.get(), (p_251028_) ->
                 this.createSingleItemTable(AllBlocks.TRACK.asItem(), ConstantValue.exactly(4.0F))
         );
+        this.dropSelf(ModBlocks.TONGDARAILWAY_BADGE.get());
     }
 
     @Override

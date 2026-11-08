@@ -1,5 +1,6 @@
 {
   "block.tongdarailway.track_spawner": "轨道刷怪笼",
+  "block.tongdarailway.tongdarailway_badge": "通达铁路纪念章",
   "commands.tongdarailway.searchstation.already_searching": "已有一个车站搜索任务正在运行。",
   "commands.tongdarailway.searchstation.failed": "车站搜索失败，请查看服务器日志。",
   "commands.tongdarailway.searchstation.not_found": "周围 %s x %s 个铁路规划区内未找到车站。",

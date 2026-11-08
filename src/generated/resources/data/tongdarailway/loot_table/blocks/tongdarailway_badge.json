@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        {
+          "condition": "minecraft:survives_explosion"
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "tongdarailway:tongdarailway_badge"
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "tongdarailway:blocks/tongdarailway_badge"
+}

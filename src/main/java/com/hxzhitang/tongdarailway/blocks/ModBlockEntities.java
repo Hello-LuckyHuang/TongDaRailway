@@ -16,6 +16,11 @@ public class ModBlockEntities {
     private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(BuiltInRegistries.BLOCK_ENTITY_TYPE, Tongdarailway.MODID);
     public static final Supplier<BlockEntityType<TrackSpawnerBlockEntity>> TRACK_SPAWNER =
             registerBlockEntity("track_spawner", () -> BlockEntityType.Builder.of(TrackSpawnerBlockEntity::new, ModBlocks.TRACK_SPAWNER.get()));
+    public static final Supplier<BlockEntityType<BadgeBlockEntity>> TONGDARAILWAY_BADGE =
+            registerBlockEntity("tongdarailway_badge", () -> BlockEntityType.Builder.of(
+                    BadgeBlockEntity::new,
+                    ModBlocks.TONGDARAILWAY_BADGE.get()
+            ));
 
     public static <T extends BlockEntity> Supplier<BlockEntityType<T>> registerBlockEntity(String key, Supplier<BlockEntityType.Builder<T>> builder) {
         return BLOCK_ENTITIES.register(key, () -> builder.get().build(Util.fetchChoiceType(References.BLOCK_ENTITY, key)));

@@ -1,5 +1,6 @@
 {
   "block.tongdarailway.track_spawner": "Track Spawner",
+  "block.tongdarailway.tongdarailway_badge": "TongDa Railway Badge",
   "commands.tongdarailway.searchstation.already_searching": "A station search is already running.",
   "commands.tongdarailway.searchstation.failed": "Station search failed. Check the server log for details.",
   "commands.tongdarailway.searchstation.not_found": "No station was found in the surrounding %s x %s railway regions.",
