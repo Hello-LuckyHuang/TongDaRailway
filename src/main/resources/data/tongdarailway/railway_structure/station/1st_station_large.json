@@ -1,0 +1,8 @@
+{
+  "class": "station",
+  "type": "normal",
+  "template": "tongdarailway:station/normal/1st_station_large",
+  "height_offset": 0,
+  "tags": ["default"],
+  "is_rare": true
+}
